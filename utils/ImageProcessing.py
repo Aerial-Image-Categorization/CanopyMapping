@@ -15,6 +15,11 @@ import matplotlib.pyplot as plt
 
 from tqdm.auto import tqdm
 
+import logging
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s',
+                    filename='../logs/image_processing.log',
+                    filemode='w')
 
 '''
 pipeline:
@@ -30,7 +35,7 @@ def split_tif(tif_path, out_folder, tile_size=(250, 250)):
     w/gdal
     pattern: out_folder/tile_tif_{i}_{j}.tif
     """
-    
+    logging.info('tif splitting started')
     ds = gdal.Open(tif_path)
     if ds is None:
         print(f"Could not open input TIF file: {tif_path}")
@@ -45,6 +50,7 @@ def split_tif(tif_path, out_folder, tile_size=(250, 250)):
     num_rows = (height + tile_size[1] - 1) // tile_size[1]
     
     total_tiles = num_rows * num_cols
+    logging.info(f'tif splitting ended\n\tsplitted tif: {tif_path}\n\tto: {out_folder}\n\tsplit size: {num_rows}x{num_cols}\n\ttile size: {tile_size}')
     with tqdm(total=total_tiles, desc='splitting tifs') as pbar:
         for i in range(num_rows):
             for j in range(num_cols):
@@ -89,14 +95,18 @@ def split(tif_path, shp_path, output_folder, tile_size=(250, 250)):
     """
     split_tif(tif_path,output_folder,tile_size)
 
+    logging.info('shp splitting started')
     extension = '.tif'
     files = os.listdir(output_folder)
     total_files = len(files)
+    count= 0
     with tqdm(total=total_files, desc='splitting shps') as pbar:
         for file in files:
             if file.endswith(extension):
                 split_shp(shp_path, os.path.join(output_folder, file), output_folder)
+                count=count+1
             pbar.update(1)
+    logging.info(f'shp splitting ended\n\tsplitted shp: {shp_path}\n\tto: {output_folder}\n\tsplit size: {count}\n\ttile size: {tile_size}')
 
 def convert_SHPtoPNG(tif_path, shp_path, png_path, tile_size=(250,250), point_size=1, bg_color='black', fg_color='white'):
     '''
@@ -104,6 +114,7 @@ def convert_SHPtoPNG(tif_path, shp_path, png_path, tile_size=(250,250), point_si
     w/ geopandas, rasterio, pillow 
     Returns: the point list as a list of tuples 
     '''
+    
     gdf = gpd.read_file(shp_path)
     
     target_epsg = 23700
@@ -246,7 +257,7 @@ def createPNG_Dataset(folder, out_folder, tile_size=(250,250),point_size=1,bg_co
     w/ convert_SHPtoPNG(), gdal
     pattern: out_folder/tile_{ext.}_{i}_{j}.{ext.}
     """
-    
+    logging.info('creating dataset')
     files = os.listdir(folder)
     total_count= len(files)
     with tqdm(total=total_count, desc='creating png dataset (tif,shp -> png)') as pbar:
@@ -265,12 +276,14 @@ def createPNG_Dataset(folder, out_folder, tile_size=(250,250),point_size=1,bg_co
                     scaled = extend_image_shape(scaled,tile_size)
                 cv2.imwrite(out_path.replace('shp','tif'), scaled)
             pbar.update(1)
+    logging.info(f'dataset created\n\tfrom: {folder}\n\tto: {out_folder}\n\ttile_size: {tile_size}\n\tpoint size: {point_size}\n\tbackground color: {bg_color}\n\tforeground color: {fg_color}')
 
 def convert_TIFtoPNG(folder, out_folder,tile_size=(250,250)):
     """
     converts .tif files to .png files from a folder into another.
     w/ gdal
     """
+    logging.info('conversion from tif to png started')
     files = os.listdir(folder)
     total_count= len(files)
     with tqdm(total=total_count, desc='converting tifs to pngs') as pbar:
@@ -286,14 +299,17 @@ def convert_TIFtoPNG(folder, out_folder,tile_size=(250,250)):
                     scaled = extend_image_shape(scaled,tile_size)
                 cv2.imwrite(out_path.replace('shp','tif'), scaled)
             pbar.update(1)
-
+    logging.info(f'conversion finished\n\tfrom: {folder}\n\tto: {out_folder}\n\ttile_size: {tile_size}')
+    
 def convert_PNGtoSHP(folder,out_folder, result_folder):
     """
     converts .png files to .shp files from a folder into another folder 
     w/ getPoints_fromPNG(), rasterio, geopandas
     """
+    logging.info('conversion from png to shp started')
     filenames = os.listdir(out_folder)
     total_count = len(filenames)
+    count=0
     with tqdm(total=total_count, desc='converting pngs to shps') as pbar:
         for filename in filenames:
             if filename.split('_')[1]=='shp':
@@ -314,8 +330,10 @@ def convert_PNGtoSHP(folder,out_folder, result_folder):
     
                 #save the GeoDataFrame as a shapefile
                 gdf.to_file(os.path.join(result_folder,'pred_'+filename.replace('.png','.shp')))
+                count=count+1
             pbar.update(1)
-            
+    logging.info(f'conversion finished\n\tfrom: {out_folder}\n\tto: {result_folder}\n\tamount: {count}')
+    
 def get_tif_location(tif_path, target_epsg):
     """
     Shows: "Bounding box coordinates in EPSG:{target_epsg}: {bbox_transformed}"
