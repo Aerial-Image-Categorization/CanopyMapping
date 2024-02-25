@@ -11,6 +11,7 @@ from rasterio.warp import transform_bounds
 from pyproj import Transformer
 from shapely.geometry import Point, box
 import geopandas as gpd
+import matplotlib.pyplot as plt
 
 from tqdm.auto import tqdm
 
@@ -314,3 +315,47 @@ def convert_PNGtoSHP(folder,out_folder, result_folder):
                 #save the GeoDataFrame as a shapefile
                 gdf.to_file(os.path.join(result_folder,'pred_'+filename.replace('.png','.shp')))
             pbar.update(1)
+            
+def get_tif_location(tif_path, target_epsg):
+    """
+    Shows: "Bounding box coordinates in EPSG:{target_epsg}: {bbox_transformed}"
+    """
+    with rasterio.open(tif_path) as src:
+        src_crs = src.crs
+        transformer = Transformer.from_crs(src_crs, f'EPSG:{target_epsg}', always_xy=True)
+        bbox_transformed = transform_bounds(src_crs, f'EPSG:{target_epsg}', *src.bounds)
+        print(f"Bounding box coordinates in EPSG:{target_epsg}: {bbox_transformed}")
+        
+def get_tif_informations(tif_path):
+    """
+    Shows:  "Affine transformation:", transform
+            "Coordinate Reference System (CRS):", crs
+    """
+    with rasterio.open(tif_path) as src:
+        transform = src.transform  #affine transformation object
+        crs = src.crs  #coordinate Reference System
+    print("Affine transformation:", transform)
+    print("Coordinate Reference System (CRS):", crs)
+    
+def get_tif_size(tif_file_path):
+    """
+    Returns: width, height
+    w/rasterio
+    """
+    with rasterio.open(tif_file_path) as src:
+        width = src.width
+        height = src.height
+    return width, height
+
+def show_image(path, divisor=10):
+    """
+    plots an image
+    w/ matplotlib
+    """
+    image_array = plt.imread(path)
+    height, width = image_array.shape[:2]
+    fig, ax = plt.subplots(figsize=(width / divisor, height / divisor), tight_layout=True)
+    ax.imshow(image_array)
+    ax.axis('off')
+
+    plt.show()
