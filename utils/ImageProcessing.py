@@ -116,12 +116,11 @@ def convert_SHPtoPNG(tif_path, shp_path, png_path, tile_size=(250,250), point_si
     '''
     
     gdf = gpd.read_file(shp_path)
-    
     target_epsg = 23700
     with rasterio.open(tif_path) as src:
         src_crs = src.crs
         # Transform the bounding box coordinates to the target EPSG code
-        transformer = Transformer.from_crs(src_crs, f'EPSG:{target_epsg}', always_xy=True)
+        #transformer = Transformer.from_crs(src_crs, f'EPSG:{target_epsg}', always_xy=True)
         bbox_transformed = transform_bounds(src_crs, f'EPSG:{target_epsg}', *src.bounds)
 
     #xmin, ymin, xmax, ymax = gdf.total_bounds
@@ -134,16 +133,34 @@ def convert_SHPtoPNG(tif_path, shp_path, png_path, tile_size=(250,250), point_si
     img = Image.new('RGB', (img_width, img_height), color=bg_color)
     draw = ImageDraw.Draw(img)
 
+    points_x = []
+    points_y = []
+
     for geom in gdf.geometry:
-        x = int((geom.x - xmin) / (xmax - xmin) * img_width)
-        y = int((ymax - geom.y) / (ymax - ymin) * img_height)  # Invert
-        draw.ellipse([x - point_size, y - point_size, x + point_size, y + point_size], fill=fg_color, outline=fg_color)
+        if geom.geom_type == 'Point':
+            points_x.append(point.x)
+            points_y.append(point.y)
+            x = int((geom.x - xmin) / (xmax - xmin) * img_width)
+            y = int((ymax - geom.y) / (ymax - ymin) * img_height)  # Invert
+            draw.ellipse([x - point_size, y - point_size, x + point_size, y + point_size], fill=fg_color, outline=fg_color)
+        elif geom.geom_type == 'MultiPoint':
+            points = gpd.GeoSeries(geom).explode()
+            for point in points:
+                points_x.append(point.x)
+                points_y.append(point.y)
+                x = int((point.x - xmin) / (xmax - xmin) * img_width)
+                y = int((ymax - point.y) / (ymax - ymin) * img_height)  # Invert
+                draw.ellipse([x - point_size, y - point_size, x + point_size, y + point_size], fill=fg_color, outline=fg_color)
+        #x = int((geom.x - xmin) / (xmax - xmin) * img_width)
+        #y = int((ymax - geom.y) / (ymax - ymin) * img_height)  # Invert
+        #draw.ellipse([x - point_size, y - point_size, x + point_size, y + point_size], fill=fg_color, outline=fg_color)
 
     img.save(png_path)
     img.close()
 
     #extract points
-    points = list(zip(gdf.geometry.x, gdf.geometry.y))
+    #points = list(zip(gdf.geometry.x, gdf.geometry.y))
+    points = list(zip(points_x, points_y))
     return points
     
 def getPoints_fromPNG(image_path):
