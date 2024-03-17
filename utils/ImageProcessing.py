@@ -268,7 +268,20 @@ def scale_pixel_values(input_dataset):
 
     return scaled_data
 
-def createPNG_Dataset(folder, out_folder, tile_size=(250,250),point_size=1,bg_color='black',fg_color='white'):
+def save_color_image(out_path, scaled_data, tif_file):
+    """
+    Save color image maintaining the original color mapping
+    """
+    red_band = tif_file.GetRasterBand(3).ReadAsArray()
+    green_band = tif_file.GetRasterBand(2).ReadAsArray()
+    blue_band = tif_file.GetRasterBand(1).ReadAsArray()
+
+    scaled_color_image = np.stack((red_band, green_band, blue_band), axis=-1)
+    scaled_color_image = cv2.normalize(scaled_color_image, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+
+    cv2.imwrite(out_path, scaled_color_image)
+
+def createPNG_Dataset(folder, out_folder, tile_size=(250,250),point_size=1,bg_color='black',fg_color='white', grayscale=False):
     """
     creates a dataset from a folder of splitted .tif & .shp files into another folder 
     w/ convert_SHPtoPNG(), gdal
@@ -291,11 +304,14 @@ def createPNG_Dataset(folder, out_folder, tile_size=(250,250),point_size=1,bg_co
                 scaled = scale_pixel_values(tif_file)
                 if scaled.shape != tile_size:
                     scaled = extend_image_shape(scaled,tile_size)
-                cv2.imwrite(out_path.replace('shp','tif'), scaled)
+                if grayscale:
+                    cv2.imwrite(out_path.replace('shp','tif'), scaled)
+                else:
+                    save_color_image(out_path.replace('shp','tif'), scaled,tif_file)
             pbar.update(1)
     logging.info(f'dataset created\n\tfrom: {folder}\n\tto: {out_folder}\n\ttile_size: {tile_size}\n\tpoint size: {point_size}\n\tbackground color: {bg_color}\n\tforeground color: {fg_color}')
 
-def convert_TIFtoPNG(folder, out_folder,tile_size=(250,250)):
+def convert_TIFtoPNG(folder, out_folder,tile_size=(250,250),grayscale=False):
     """
     converts .tif files to .png files from a folder into another.
     w/ gdal
@@ -314,7 +330,10 @@ def convert_TIFtoPNG(folder, out_folder,tile_size=(250,250)):
                 scaled = scale_pixel_values(tif_file)
                 if scaled.shape != tile_size:
                     scaled = extend_image_shape(scaled,tile_size)
-                cv2.imwrite(out_path.replace('shp','tif'), scaled)
+                if grayscale:
+                    cv2.imwrite(out_path.replace('shp','tif'), scaled)
+                else:
+                    save_color_image(out_path.replace('shp','tif'), scaled,tif_file)
             pbar.update(1)
     logging.info(f'conversion finished\n\tfrom: {folder}\n\tto: {out_folder}\n\ttile_size: {tile_size}')
     
