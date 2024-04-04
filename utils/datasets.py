@@ -30,20 +30,21 @@ def load_image(filename):
 
 class ImageDataset(Dataset):
     def __init__(self, dataset_path) -> None:
+        images = os.listdir(os.path.join(dataset_path,'images'))
+        masks = os.listdir(os.path.join(dataset_path,'masks'))
         files = os.listdir(dataset_path)
         self.images_path = []
         self.masks_path = []
         self.image_coords = []
         self.mask_coords = []
         
-        for file in files:
-            if file.split('_')[1]=='tif':
-                self.images_path.append(os.path.join(dataset_path,file))
-                self.masks_path.append(os.path.join(dataset_path,file.replace('tif','shp')))
-                xy = splitext(file)[0].split('_')[2:4]
-                self.image_coords.append((int(xy[0]),int(xy[1])))
-                xy = splitext(file.replace('tif','shp'))[0].split('_')[2:4]
-                self.mask_coords.append((int(xy[0]),int(xy[1])))
+        for file in images:
+            self.images_path.append(os.path.join(os.path.join(dataset_path,'images'),file))
+            self.masks_path.append(os.path.join(os.path.join(dataset_path,'masks'),file.replace('tif','shp')))
+            xy = splitext(file)[0].split('_')[2:4]
+            self.image_coords.append((int(xy[0]),int(xy[1])))
+            xy = splitext(file.replace('tif','shp'))[0].split('_')[2:4]
+            self.mask_coords.append((int(xy[0]),int(xy[1])))
                 
     def __len__(self):
         return len(self.images_path)
