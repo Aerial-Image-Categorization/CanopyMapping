@@ -26,13 +26,12 @@ def load_image(filename):
         #return Image.open(filename)
         img = cv2.imread(filename)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        return Image.fromarray(img).convert('L')
+        return Image.fromarray(img)#.convert('L')
 
 class ImageDataset(Dataset):
     def __init__(self, dataset_path) -> None:
         images = os.listdir(os.path.join(dataset_path,'images'))
-        masks = os.listdir(os.path.join(dataset_path,'masks'))
-        files = os.listdir(dataset_path)
+        #files = os.listdir(dataset_path)
         self.images_path = []
         self.masks_path = []
         self.image_coords = []
@@ -56,16 +55,27 @@ class ImageDataset(Dataset):
         assert newW > 0 and newH > 0, 'Scale is too small, resized images would have no pixel'
         pil_img = pil_img.resize((newW, newH), resample=Image.NEAREST if is_mask else Image.BICUBIC)
         img = np.asarray(pil_img)
-        if img.ndim == 2:
-            img = img[np.newaxis, ...]
-        else:
-            img = img.transpose((2, 0, 1))
-        #if (img > 1).any():
-        #    img = img / 255.0
-        img = img / 255.0
+
         if is_mask:
-            img = img / 255.0
-        return img
+            mask = np.zeros((newH, newW), dtype=np.int64)
+            for i, v in enumerate(range(mask_values)):
+                if img.ndim == 2:
+                    mask[img == v] = i
+                else:
+                    mask[(img == v).all(-1)] = i
+
+            return mask
+
+        else:
+            if img.ndim == 2:
+                img = img[np.newaxis, ...]
+            else:
+                img = img.transpose((2, 0, 1))
+
+            if (img > 1).any():
+                img = img / 255.0
+
+            return img
         
     def __getitem__(self, idx):
         #return {
@@ -74,7 +84,7 @@ class ImageDataset(Dataset):
         #}
         mask = load_image(self.images_path[idx])
         img = load_image(self.masks_path[idx])
-        img = img.convert('L')
+        #img = img.convert('L')
         
         assert img.size == mask.size, \
             f'Image and mask should be the same size, but are {img.size} and {mask.size}'
