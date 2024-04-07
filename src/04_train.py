@@ -67,7 +67,7 @@ if __name__ == '__main__':
     gradient_clipping: float = 1.0
     save_checkpoint = True
 
-    wb = wandb.init(project='tree_detection', resume='allow', anonymous='must')
+    wb = wandb.init(project='tree_detection', resume='allow')
     wb.config.update(
         dict(epochs=epochs, batch_size=batch_size, learning_rate=learning_rate,
              val_percent=val_percent, save_checkpoint=save_checkpoint, amp=amp)
