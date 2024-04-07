@@ -7,6 +7,7 @@ import gc
 import geopandas as gpd
 import rasterio
 from rasterio.crs import CRS
+import cv2
 
 # %%
 def dropna_SHPs(folder, pattern = r'^tile_shp.*\.shp$'):
@@ -57,4 +58,29 @@ def set_valid_CRS(folder, pattern = r'^tile_tif.*\.tif$', desired_crs_epsg=23700
     gc.collect() 
     return out_list
 
-
+def check_images_size(dataset_path):
+    '''
+    dataset structure:
+       - dataset
+           - train
+               - images
+               - masks
+           - test
+               - images
+               - masks            
+    '''
+    train_images_path = os.path.join(dataset_path, 'train','images')
+    test_images_path = os.path.join(dataset_path, 'test','images')
+    
+    for image_name in os.listdir(train_images_path):
+        image = cv2.imread(os.path.join(train_images_path,image_name))
+        image_mask = cv2.imread(os.path.join(train_images_path.replace('images','masks'),image_name.replace('_tif_','_shp_')))
+        if image.shape != image_mask.shape:
+            print(f'train: {image_name} \n\timage shape: {image.shape}\n\tmask shape: {image_mask.shape}')
+            
+    for image_name in os.listdir(test_images_path):
+        image = cv2.imread(os.path.join(test_images_path,image_name))
+        image_mask = cv2.imread(os.path.join(test_images_path.replace('images','masks'),image_name.replace('_tif_','_shp_')))
+        if image.shape != image_mask.shape:
+            print(f'test: {image_name} \n\timage shape: {image.shape}\n\tmask shape: {image_mask.shape}')
+    
