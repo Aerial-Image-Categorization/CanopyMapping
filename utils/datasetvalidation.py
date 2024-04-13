@@ -9,14 +9,22 @@ import rasterio
 from rasterio.crs import CRS
 import cv2
 
+import time
+import logging
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s',
+                    filename='../logs/image_processing.log',
+                    filemode='a')
+
 # %%
 def dropna_SHPs(folder, pattern = r'^tile_shp.*\.shp$'):
     '''
     returns: 
-        -   runtime
         -   number of removed image-mask pairs
+        -   runtime
     '''
-    
+    logging.info(f'⚙️ DROP SHPS with zero points started:\n\t- shps folder: {folder}')
+    start_time = time.time()
     ad_extensions = ['.cpg','.dbf','.prj','.shx']
     
     bin_list = []
@@ -38,10 +46,16 @@ def dropna_SHPs(folder, pattern = r'^tile_shp.*\.shp$'):
             pbar.update(1)
             
     gc.collect()
-    return bin_list
+    elapsed_time = time.time() - start_time
+    hours, remainder = divmod(elapsed_time, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    logging.info(f'✅ DROP SHPS ended in {int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}\n\t- drop count: {len(bin_list)}')
+    return bin_list, elapsed_time
 
 # %%
 def set_valid_CRS(folder, pattern = r'^tile_tif.*\.tif$', desired_crs_epsg=23700):
+    logging.info(f'⚙️ SET VALID CRS started:\n\t- shps folder: {folder}\n\t- desired crs epsg: {desired_crs_epsg}')
+    start_time = time.time()
     out_list = []
     filenames = os.listdir(folder)
     total_length = len(filenames)
@@ -55,8 +69,12 @@ def set_valid_CRS(folder, pattern = r'^tile_tif.*\.tif$', desired_crs_epsg=23700
                         splitted = filename.split('.')[0].split('_')
                         out_list.append((splitted[2],splitted[3]))
             pbar.update(1)
-    gc.collect() 
-    return out_list
+    gc.collect()
+    elapsed_time = time.time() - start_time
+    hours, remainder = divmod(elapsed_time, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    logging.info(f'✅ SET VALID CRS ended in {int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}\n\t- set count: {len(out_list)}')
+    return out_list, elapsed_time
 
 def check_images_size(dataset_path):
     '''
@@ -75,12 +93,17 @@ def check_images_size(dataset_path):
     for image_name in os.listdir(train_images_path):
         image = cv2.imread(os.path.join(train_images_path,image_name))
         image_mask = cv2.imread(os.path.join(train_images_path.replace('images','masks'),image_name.replace('_tif_','_shp_')))
-        if image.shape != image_mask.shape:
-            print(f'train: {image_name} \n\timage shape: {image.shape}\n\tmask shape: {image_mask.shape}')
+        try:
+            if image.shape != image_mask.shape:
+                print(f'train: {image_name} \n\timage shape: {image.shape}\n\tmask shape: {image_mask.shape}')
+        except:
+            print(f'error: {image_name}')
             
     for image_name in os.listdir(test_images_path):
         image = cv2.imread(os.path.join(test_images_path,image_name))
         image_mask = cv2.imread(os.path.join(test_images_path.replace('images','masks'),image_name.replace('_tif_','_shp_')))
-        if image.shape != image_mask.shape:
-            print(f'test: {image_name} \n\timage shape: {image.shape}\n\tmask shape: {image_mask.shape}')
-    
+        try:
+            if image.shape != image_mask.shape:
+                print(f'test: {image_name} \n\timage shape: {image.shape}\n\tmask shape: {image_mask.shape}')
+        except:
+            print(f'error: {image_name}')
