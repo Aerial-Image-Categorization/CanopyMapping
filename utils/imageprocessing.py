@@ -315,6 +315,59 @@ def createPNG_Dataset(folder, out_folder, tile_size=(250,250),point_size=1,bg_co
     """
     creates a dataset from a folder of splitted .tif & .shp files into another folder 
     w/ convert_SHPtoPNG(), gdal
+    pattern: out_folder/{images / masks}/tile_{ext.}_{i}_{j}.{ext.}
+    """
+    logging.info(f'⚙️ Creating DATASET:\n\t- from: {folder}\n\t- to: {out_folder}\n\t- tile_size: {tile_size}\n\t- point size: {point_size}\n\t- background color: {bg_color}\n\t- foreground color: {fg_color}')
+    start_time = time.time()
+    
+    tifs_folder = os.path.join(folder, 'tifs')
+    shps_folder = os.path.join(folder, 'shps')
+
+    out_tifs_folder = os.path.join(out_folder, 'images')
+    out_shps_folder = os.path.join(out_folder, 'masks')
+    
+    if not os.path.exists(out_tifs_folder):
+        os.makedirs(out_tifs_folder)
+    if not os.path.exists(out_shps_folder):
+        os.makedirs(out_shps_folder)
+
+    files = [f for f in os.listdir(tifs_folder) if f.endswith('.tif')]
+    
+    total_count = len(files)
+
+    with tqdm(total=total_count, desc='Processing tif files') as pbar:
+        for file in files:
+            tif_path = os.path.join(tifs_folder, file)
+            out_path = os.path.join(out_tifs_folder, os.path.splitext(file)[0] + '.png')
+            tif_file = gdal.Open(tif_path)
+            scaled = scale_pixel_values(tif_file)
+            if scaled.shape != tile_size:
+                scaled = extend_image_shape(scaled, tile_size)
+            if grayscale:
+                cv2.imwrite(out_path, scaled)
+            else:
+                save_color_image(out_path, scaled, tif_file)
+            pbar.update(1)
+            
+    files = [f for f in os.listdir(shps_folder) if f.endswith('.shp')]
+    total_count = len(files)
+    with tqdm(total=total_count, desc='Processing shp files') as pbar:
+        for file in files:
+            tif_path = os.path.join(tifs_folder, file.replace('_shp_', '_tif_').replace('.shp', '.tif'))
+            out_path = os.path.join(out_shps_folder, os.path.splitext(file)[0] + '.png')
+            convert_SHPtoPNG(tif_path, os.path.join(shps_folder, file), out_path, tile_size, point_size, bg_color, fg_color)
+            pbar.update(1)
+
+    elapsed_time = time.time() - start_time
+    hours, remainder = divmod(elapsed_time, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    
+    logging.info(f'✅ DATASET created in: {int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}')
+    return elapsed_time
+def createPNG_Dataset_old(folder, out_folder, tile_size=(250,250),point_size=1,bg_color='black',fg_color='white', grayscale=False):
+    """
+    creates a dataset from a folder of splitted .tif & .shp files into another folder 
+    w/ convert_SHPtoPNG(), gdal
     pattern: out_folder/tile_{ext.}_{i}_{j}.{ext.}
     """
     logging.info('creating dataset')
