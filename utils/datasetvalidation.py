@@ -8,6 +8,7 @@ import geopandas as gpd
 import rasterio
 from rasterio.crs import CRS
 import cv2
+import shutil
 
 import time
 import logging
@@ -17,7 +18,7 @@ logging.basicConfig(level=logging.INFO,
                     filemode='a')
 
 # %%
-def dropna_SHPs(folder, pattern = r'^tile_shp.*\.shp$'):
+def dropna_SHPs(folder,destination_folder='dropnas', pattern = r'^tile_shp.*\.shp$'):
     '''
     returns: 
         -   number of removed image-mask pairs
@@ -26,8 +27,12 @@ def dropna_SHPs(folder, pattern = r'^tile_shp.*\.shp$'):
     logging.info(f'⚙️ DROP SHPS with zero points started:\n\t- shps folder: {folder}')
     start_time = time.time()
     ad_extensions = ['.cpg','.dbf','.prj','.shx']
+
+    destination_folder = os.path.join(folder,destination_folder)
     
     bin_list = []
+    os.makedirs(os.path.join(destination_folder,'images'), exist_ok=True)
+    os.makedirs(os.path.join(destination_folder,'masks'), exist_ok=True)
     
     filenames = os.listdir(folder)
     total_length = len(filenames)
@@ -38,11 +43,17 @@ def dropna_SHPs(folder, pattern = r'^tile_shp.*\.shp$'):
                 if len(shapefile.geometry)==0:
                     splitted = filename.split('.')[0].split('_')
                     bin_list.append((splitted[2],splitted[3]))
-                    os.remove(os.path.join(folder,filename))
-                    os.remove(os.path.join(folder,filename.replace('shp','tif')))
+                    #os.remove(os.path.join(folder,filename))
+                    #os.remove(os.path.join(folder.replace('shps','tifs'),filename.replace('shp','tif')))
+                    #for ext in ad_extensions:
+                    #    if os.path.exists(os.path.join(folder,filename[:-4]+ext)):
+                    #        os.remove(os.path.join(folder,filename[:-4]+ext))
+                    shutil.move(os.path.join(folder, filename), os.path.join(destination_folder,'masks', filename))
+                    shutil.move(os.path.join(folder.replace('shps', 'tifs'), filename.replace('shp', 'tif')),
+                        os.path.join(destination_folder,'images', filename.replace('shp', 'tif')))
                     for ext in ad_extensions:
-                        if os.path.exists(os.path.join(folder,filename[:-4]+ext)):
-                            os.remove(os.path.join(folder,filename[:-4]+ext))
+                        if os.path.exists(os.path.join(folder, filename[:-4] + ext)):
+                            shutil.move(os.path.join(folder, filename[:-4] + ext), os.path.join(destination_folder,'masks', filename[:-4] + ext))
             pbar.update(1)
             
     gc.collect()
