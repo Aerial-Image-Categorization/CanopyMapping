@@ -36,14 +36,16 @@ class ImageDataset(Dataset):
         self.masks_path = []
         self.image_coords = []
         self.mask_coords = []
+        self.mask_values = [0,255]
         
         for file in images:
-            self.images_path.append(os.path.join(os.path.join(dataset_path,'images'),file))
-            self.masks_path.append(os.path.join(os.path.join(dataset_path,'masks'),file.replace('tif','shp')))
-            xy = splitext(file)[0].split('_')[2:4]
-            self.image_coords.append((int(xy[0]),int(xy[1])))
-            xy = splitext(file.replace('tif','shp'))[0].split('_')[2:4]
-            self.mask_coords.append((int(xy[0]),int(xy[1])))
+            if file.endswith('png'):
+                self.images_path.append(os.path.join(os.path.join(dataset_path,'images'),file))
+                self.masks_path.append(os.path.join(os.path.join(dataset_path,'masks'),file.replace('tif','shp')))
+                xy = splitext(file)[0].split('_')[2:4]
+                self.image_coords.append((int(xy[0]),int(xy[1])))
+                xy = splitext(file.replace('tif','shp'))[0].split('_')[2:4]
+                self.mask_coords.append((int(xy[0]),int(xy[1])))
                 
     def __len__(self):
         return len(self.images_path)
@@ -58,7 +60,7 @@ class ImageDataset(Dataset):
 
         if is_mask:
             mask = np.zeros((newH, newW), dtype=np.int64)
-            for i, v in enumerate(range(mask_values)):
+            for i, v in enumerate(mask_values):
                 if img.ndim == 2:
                     mask[img == v] = i
                 else:
@@ -82,8 +84,8 @@ class ImageDataset(Dataset):
         #    'image': self.images_path[idx],
         #    'mask': self.masks_path[idx]
         #}
-        mask = load_image(self.images_path[idx])
-        img = load_image(self.masks_path[idx])
+        img = load_image(self.images_path[idx])
+        mask = load_image(self.masks_path[idx])
         #img = img.convert('L')
         
         assert img.size == mask.size, \
@@ -92,8 +94,8 @@ class ImageDataset(Dataset):
         self.scale = 1.0
         #self.scale = 0.2
         
-        img = self.preprocess(1, img, self.scale, is_mask=False)
-        mask = self.preprocess(1, mask, self.scale, is_mask=True)
+        img = self.preprocess(self.mask_values, img, self.scale, is_mask=False)
+        mask = self.preprocess(self.mask_values, mask, self.scale, is_mask=True)
         return {
             'image': torch.as_tensor(img.copy()).float().contiguous(),
             'mask': torch.as_tensor(mask.copy()).long().contiguous(),
