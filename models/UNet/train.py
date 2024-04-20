@@ -1,6 +1,3 @@
-import sys
-sys.path.append('../')
-
 import argparse
 import logging
 import os
@@ -17,12 +14,10 @@ from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
 
 import wandb
-from unet.evaluate import evaluate
-from unet import UNet
-#from utils.data_loading import BasicDataset, CarvanaDataset
-from models.UNet.datasets import ImageDataset
-from .model.dice_score import dice_loss
-from .model.Unet-model
+
+from .evaluate import evaluate
+from .datasets import ImageDataset
+from .dice_score import dice_loss
 
 def train_model(
         dataset,
@@ -39,11 +34,16 @@ def train_model(
         momentum: float = 0.999,
         gradient_clipping: float = 1.0,
 ):
-    # 1. Create dataset
-    #try:
-    #    dataset = CarvanaDataset(dir_img, dir_mask, img_scale)
-    #except (AssertionError, RuntimeError, IndexError):
-    #    dataset = BasicDataset(dir_img, dir_mask, img_scale)
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    logging.info(f'Using device {device}')
+    
+    model = model.to(memory_format=torch.channels_last)
+    
+    logging.info(f'Network:\n'
+                 f'\t{model.n_channels} input channels\n'
+                 f'\t{model.n_classes} output channels (classes)\n'
+                 f'\t{"Bilinear" if model.bilinear else "Transposed conv"} upscaling')
 
     # 2. Split into train / validation partitions
     n_val = int(len(dataset) * val_percent)
@@ -166,64 +166,3 @@ def train_model(
             state_dict['mask_values'] = dataset.mask_values
             torch.save(state_dict, str(dir_checkpoint / 'checkpoint_epoch{}.pth'.format(epoch)))
             logging.info(f'Checkpoint {epoch} saved!')
-
-
-
-if __name__ == '__main__':
-    classes = 1
-    bilinear = False
-    load = False
-    epochs = 5
-    batch_size = 1
-    lr = 1e-5
-    scale = 1
-    val = 0.1
-    amp = False
-
-    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    logging.info(f'Using device {device}')
-
-    # Change here to adapt to your data
-    # n_channels=3 for RGB images
-    # n_classes is the number of probabilities you want to get per pixel
-    model = UNet(n_channels=3, n_classes=classes, bilinear=bilinear)
-    model = model.to(memory_format=torch.channels_last)
-
-    logging.info(f'Network:\n'
-                 f'\t{model.n_channels} input channels\n'
-                 f'\t{model.n_classes} output channels (classes)\n'
-                 f'\t{"Bilinear" if model.bilinear else "Transposed conv"} upscaling')
-
-    if load:
-        state_dict = torch.load(load, map_location=device)
-        del state_dict['mask_values']
-        model.load_state_dict(state_dict)
-        logging.info(f'Model loaded from {load}')
-
-    model.to(device=device)
-    try:
-        train_model(
-            model=model,
-            epochs=epochs,
-            batch_size=batch_size,
-            learning_rate=lr,
-            device=device,
-            img_scale=scale,
-            val_percent=val / 100,
-            amp=amp
-        )
-    except torch.cuda.OutOfMemoryError:
-        logging.error('Detected OutOfMemoryError! Enabling checkpointing to reduce memory usage, but this slows down training. Consider enabling AMP (--amp) for fast and memory efficient training')
-        torch.cuda.empty_cache()
-        model.use_checkpointing()
-        train_model(
-            model=model,
-            epochs=epochs,
-            batch_size=batch_size,
-            learning_rate=lr,
-            device=device,
-            img_scale=scale,
-            val_percent=val / 100,
-            amp=amp
-        )
