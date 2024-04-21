@@ -19,6 +19,8 @@ from .evaluate import evaluate
 from .datasets import ImageDataset
 from .dice_score import dice_loss
 
+import datetime
+
 def train_model(
         dataset,
         model,
@@ -34,6 +36,8 @@ def train_model(
         momentum: float = 0.999,
         gradient_clipping: float = 1.0,
 ):
+    dir_checkpoint = Path(f'./checkpoints_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")}')
+    
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info(f'Using device {device}')
@@ -56,7 +60,7 @@ def train_model(
     val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
 
     # (Initialize logging)
-    experiment = wandb.init(project='U-Net', resume='allow', anonymous='must')
+    experiment = wandb.init(project='TreeDetection', resume='allow', anonymous='must',name='unet-benchmark', magic=True)
     experiment.config.update(
         dict(epochs=epochs, batch_size=batch_size, learning_rate=learning_rate,
              val_percent=val_percent, save_checkpoint=save_checkpoint, img_scale=img_scale, amp=amp)
