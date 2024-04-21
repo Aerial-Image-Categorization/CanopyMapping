@@ -4,21 +4,22 @@ import torch
 from models import UNet
 
 if __name__ == '__main__':
-    dataset_path = '../data/2024-04-13-dataset/augmentated/train'
-    epochs = 5
-    batch_size = 1
+    dataset_path = '../data/2024-04-21-dataset/augmentated/train'
+    epochs = 15
+    batch_size = 6
     lr = 1e-5
     scale = 1
     val = 0.1
     amp = False
+    bilinear = False
     
-    model = UNet.model(n_channels=3, n_classes=2, bilinear=True)
+    model = UNet.model(n_channels=3, n_classes=2, bilinear=bilinear)
     dataset = UNet.ImageDataset(dataset_path)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
     
     try:
-        UNet.train_model(
+        UNet.train_model_Jaccard(
             dataset=dataset,
             model=model,
             epochs=epochs,
