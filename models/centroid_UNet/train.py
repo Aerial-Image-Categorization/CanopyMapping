@@ -36,7 +36,7 @@ def train_model_Jaccard(
         momentum: float = 0.999,
         gradient_clipping: float = 1.0,
 ):
-    name='unet-centroid-b6'
+    name='unet-centroid-standard-iou-b6'
     dir_checkpoint = Path(f'./checkpoints_{name}_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")}')
     
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -80,8 +80,8 @@ def train_model_Jaccard(
     ''')
 
     # 4. Set up the optimizer, the loss, the learning rate scheduler and the loss scaling for AMP
-    optimizer = optim.RMSprop(model.parameters(),
-                              lr=learning_rate, weight_decay=weight_decay, momentum=momentum, foreach=True)
+    optimizer = optim.Adam(model.parameters(),
+                              lr=learning_rate, weight_decay=weight_decay, foreach=True)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=5)  # goal: maximize Dice score
     grad_scaler = torch.cuda.amp.GradScaler(enabled=amp)
     criterion = nn.CrossEntropyLoss() if model.n_classes > 1 else nn.BCEWithLogitsLoss()
