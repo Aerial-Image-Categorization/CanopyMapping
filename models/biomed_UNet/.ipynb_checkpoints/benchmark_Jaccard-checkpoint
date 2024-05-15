@@ -1,0 +1,38 @@
+/home/ubuntu/banoczymartin_thesis/canopyseg/lib/python3.12/site-packages/torch/cuda/__init__.py:628: UserWarning: Can't initialize NVML
+  warnings.warn("Can't initialize NVML")
+INFO: Using device cuda
+INFO: Network:
+	3 input channels
+	2 output channels (classes)
+	Transposed conv upscaling
+wandb: Currently logged in as: banoczymartin (poltextlab). Use `wandb login --relogin` to force relogin
+wandb: WARNING wandb.init() arguments ignored because wandb magic has already been initialized
+wandb: Tracking run with wandb version 0.16.6
+wandb: Run data is saved locally in /home/ubuntu/banoczymartin_thesis/TreeDetection/src/wandb/run-20240421_213558-k0x7r7zj
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run unet-benchmark-Jaccard
+wandb: ⭐️ View project at https://wandb.ai/poltextlab/TreeDetection
+wandb: 🚀 View run at https://wandb.ai/poltextlab/TreeDetection/runs/k0x7r7zj
+INFO: Starting training:
+        Epochs:          15
+        Batch size:      6
+        Learning rate:   0.0001
+        Training size:   7841
+        Validation size: 7
+        Checkpoints:     True
+        Device:          cuda
+        Images scaling:  1
+        Mixed Precision: False
+    
+Epoch 1/15:   0%|                                                                             | 0/7841 [00:00<?, ?img/s]Epoch 1/15:   0%|                                                                             | 0/7841 [00:01<?, ?img/s]
+Traceback (most recent call last):
+  File "/home/ubuntu/banoczymartin_thesis/TreeDetection/src/train.py", line 22, in <module>
+    UNet.train_model_Jaccard(
+  File "/home/ubuntu/banoczymartin_thesis/TreeDetection/src/../models/UNet/train.py", line 265, in train_model_Jaccard
+    loss += jaccard_loss(
+            ^^^^^^^^^^^^^
+TypeError: jaccard_loss() got an unexpected keyword argument 'multiclass'
+wandb: - 0.003 MB of 0.003 MB uploadedwandb: \ 0.003 MB of 0.003 MB uploadedwandb: | 0.003 MB of 0.003 MB uploadedwandb: / 0.008 MB of 0.012 MB uploaded (0.004 MB deduped)wandb: - 0.013 MB of 0.013 MB uploaded (0.004 MB deduped)wandb: 🚀 View run unet-benchmark-Jaccard at: https://wandb.ai/poltextlab/TreeDetection/runs/k0x7r7zj
+wandb: ⭐️ View project at: https://wandb.ai/poltextlab/TreeDetection
+wandb: Synced 5 W&B file(s), 0 media file(s), 2 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20240421_213558-k0x7r7zj/logs
