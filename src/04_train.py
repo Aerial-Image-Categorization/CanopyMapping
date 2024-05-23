@@ -17,13 +17,15 @@ from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
 
 import wandb
-from evaluate import evaluate
+from unet.evaluate import evaluate
 from unet import UNet
 #from utils.data_loading import BasicDataset, CarvanaDataset
-from utils.datasets import ImageDataset
-from utils.dice_score import dice_loss
+from models.UNet.datasets import ImageDataset
+from .model.dice_score import dice_loss
+from .model.Unet-model
 
 def train_model(
+        dataset,
         model,
         device,
         epochs: int = 5,
@@ -42,8 +44,6 @@ def train_model(
     #    dataset = CarvanaDataset(dir_img, dir_mask, img_scale)
     #except (AssertionError, RuntimeError, IndexError):
     #    dataset = BasicDataset(dir_img, dir_mask, img_scale)
-
-    dataset = ImageDataset('../data/2024-04-13-dataset/augmentated/train')
 
     # 2. Split into train / validation partitions
     n_val = int(len(dataset) * val_percent)
@@ -215,7 +215,7 @@ if __name__ == '__main__':
         )
     except torch.cuda.OutOfMemoryError:
         logging.error('Detected OutOfMemoryError! Enabling checkpointing to reduce memory usage, but this slows down training. Consider enabling AMP (--amp) for fast and memory efficient training')
-    torch.cuda.empty_cache()
+        torch.cuda.empty_cache()
         model.use_checkpointing()
         train_model(
             model=model,
