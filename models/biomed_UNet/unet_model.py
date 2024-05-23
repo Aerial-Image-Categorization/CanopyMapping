@@ -1,6 +1,15 @@
 """ Full assembly of the parts to form the complete network """
 
 from .unet_parts import *
+from transformers import PreTrainedModel, PretrainedConfig
+
+class config(PretrainedConfig):
+    model_type = "unet"
+    def __init__(self, n_channels=3, n_classes=2, bilinear=False, **kwargs):
+        super().__init__(**kwargs)
+        self.n_channels = n_channels
+        self.n_classes = n_classes
+        self.bilinear = bilinear
 
 
 def load_model(model, path, device):
@@ -9,24 +18,30 @@ def load_model(model, path, device):
     model.load_state_dict(state_dict)
     #logging.info(f'Model loaded from {load}')
 
-class model(nn.Module):
-    def __init__(self, n_channels, n_classes, bilinear=False):
-        super(model, self).__init__()
-        self.n_channels = n_channels
-        self.n_classes = n_classes
-        self.bilinear = bilinear
+class model(PreTrainedModel):
+    #self.config_class = config
+    def __init__(self, config):
+        super().__init__(config)
+        self.config_class = config
+        self.n_channels = config.n_channels
+        self.n_classes = config.n_classes
+        self.bilinear = config.bilinear
+        
+        #self.n_channels = n_channels
+        #self.n_classes = n_classes
+        #self.bilinear = bilinear
 
-        self.inc = (DoubleConv(n_channels, 64))
+        self.inc = (DoubleConv(self.n_channels, 64))
         self.down1 = (Down(64, 128))
         self.down2 = (Down(128, 256))
         self.down3 = (Down(256, 512))
-        factor = 2 if bilinear else 1
+        factor = 2 if self.bilinear else 1
         self.down4 = (Down(512, 1024 // factor))
-        self.up1 = (Up(1024, 512 // factor, bilinear))
-        self.up2 = (Up(512, 256 // factor, bilinear))
-        self.up3 = (Up(256, 128 // factor, bilinear))
-        self.up4 = (Up(128, 64, bilinear))
-        self.outc = (OutConv(64, n_classes))
+        self.up1 = (Up(1024, 512 // factor, self.bilinear))
+        self.up2 = (Up(512, 256 // factor, self.bilinear))
+        self.up3 = (Up(256, 128 // factor, self.bilinear))
+        self.up4 = (Up(128, 64, self.bilinear))
+        self.outc = (OutConv(64, self.n_classes))
 
     def forward(self, x):
         x1 = self.inc(x)
@@ -52,3 +67,16 @@ class model(nn.Module):
         self.up3 = torch.utils.checkpoint(self.up3)
         self.up4 = torch.utils.checkpoint(self.up4)
         self.outc = torch.utils.checkpoint(self.outc)
+
+    def save_pretrained(self, save_directory):
+        model_path = f"{save_directory}/pytorch_model.bin"
+        torch.save(self.state_dict(), model_path)
+        self.config_class.save_pretrained(save_directory)
+
+    @classmethod
+    def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
+        unetconfig = config.from_pretrained(pretrained_model_name_or_path, *model_args, **kwargs)
+        model = cls(unetconfig)
+        state_dict = torch.hub.load_state_dict_from_url(f"https://huggingface.co/{pretrained_model_name_or_path}/resolve/main/pytorch_model.bin", map_location="cpu")
+        model.load_state_dict(state_dict)
+        return model
