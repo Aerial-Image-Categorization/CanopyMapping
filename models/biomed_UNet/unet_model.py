@@ -74,9 +74,9 @@ class model(PreTrainedModel):
         self.config_class.save_pretrained(save_directory)
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
+    def from_pretrained(cls, pretrained_model_name_or_path, device, *model_args, **kwargs):
         unetconfig = config.from_pretrained(pretrained_model_name_or_path, *model_args, **kwargs)
         model = cls(unetconfig)
-        state_dict = torch.hub.load_state_dict_from_url(f"https://huggingface.co/{pretrained_model_name_or_path}/resolve/main/pytorch_model.bin", map_location="cpu")
+        state_dict = torch.hub.load_state_dict_from_url(f"https://huggingface.co/{pretrained_model_name_or_path}/resolve/main/pytorch_model.bin", map_location=device)
         model.load_state_dict(state_dict)
         return model

@@ -54,7 +54,7 @@ def split_tif(tif_path, out_folder, tile_size=(250, 250)):
     
     total_tiles = num_rows * num_cols
     
-    with tqdm(total=total_tiles, desc='splitting tifs') as pbar:
+    with tqdm(total=total_tiles, desc='splitting TIF') as pbar:
         for i in range(num_rows):
             for j in range(num_cols):
                 #bbox coordinates
@@ -399,26 +399,25 @@ def convert_TIFtoPNG(folder, out_folder,tile_size=(250,250),grayscale=False):
     converts .tif files to .png files from a folder into another.
     w/ gdal
     """
-    logging.info('conversion from tif to png started')
+    start_time = time.time()
     files = os.listdir(folder)
     total_count= len(files)
-    with tqdm(total=total_count, desc='converting tifs to pngs') as pbar:
+    with tqdm(total=total_count, desc='converting TIFs to PNGs') as pbar:
         for file in files:
-            if file.endswith('.shp'):
-                tif_path = os.path.join(folder,str(file).replace('_shp_','_tif_').replace('.shp','.tif'))
-                out_path = os.path.join(out_folder, os.path.splitext(file)[0]+'.png')
-            
-                # .tif
-                tif_file = gdal.Open(tif_path)
-                scaled = scale_pixel_values(tif_file)
-                if scaled.shape != tile_size:
-                    scaled = extend_image_shape(scaled,tile_size)
-                if grayscale:
-                    cv2.imwrite(out_path.replace('shp','tif'), scaled)
-                else:
-                    save_color_image(out_path.replace('shp','tif'), scaled,tif_file)
+            tif_path = os.path.join(folder,file)
+            out_path = os.path.join(out_folder, os.path.splitext(file)[0]+'.png')
+        
+            # .tif
+            tif_file = gdal.Open(tif_path)
+            scaled = scale_pixel_values(tif_file)
+            if scaled.shape != tile_size:
+                scaled = extend_image_shape(scaled,tile_size)
+            if grayscale:
+                cv2.imwrite(out_path, scaled)
+            else:
+                save_color_image(out_path, scaled,tif_file)
             pbar.update(1)
-    logging.info(f'conversion finished\n\tfrom: {folder}\n\tto: {out_folder}\n\ttile_size: {tile_size}')
+    return time.time()-start_time
     
 def convert_PNGtoSHP(folder,out_folder, result_folder):
     """
@@ -452,6 +451,49 @@ def convert_PNGtoSHP(folder,out_folder, result_folder):
                 count=count+1
             pbar.update(1)
     logging.info(f'conversion finished\n\tfrom: {out_folder}\n\tto: {result_folder}\n\tamount: {count}')
+
+def create_SHP(folder,out_folder, result_path):
+    """
+    w/ getPoints_fromPNG(), rasterio, geopandas
+    """
+    start_time=time.time()
+    filenames = os.listdir(out_folder)
+    total_count = len(filenames)
+    count=0
+    
+    out_points = [] 
+    with tqdm(total=total_count, desc='converting MASKs to SHP') as pbar:
+        for filename in filenames:
+            if not str(filename).startswith('.'):
+                image_coords = getPoints_fromPNG(os.path.join(out_folder,filename))
+
+                tif_path = os.path.join(folder,filename.replace('mask','tile_tif').replace('_shp_','_tif_').replace('.png','.tif'))
+                with rasterio.open(tif_path) as src:
+                    transform = src.transform  #affine transformation object
+                    crs = src.crs  #coordinate Reference System
+
+                geo_coords = [transform * (x, y) for x, y in image_coords]
+
+                #geo_coords -> Points (obj.)
+                point_geoms = [Point(coord) for coord in geo_coords]
+
+                count=count+1
+                out_points.append(point_geoms)
+                pbar.update(1)
+    flattened_points = flatten_list(out_points)
+    gdf = gpd.GeoDataFrame(geometry=flattened_points, crs=23700)  # Adjust CRS as needed
+    gdf.to_file(result_path)
+    elapsed_time = time.time() - start_time
+    return count, elapsed_time
+
+def flatten_list(lst:list):
+    flattened_list = []
+    for sublist in lst:
+        if isinstance(sublist, list):
+            flattened_list.extend(flatten_list(sublist))
+        else:
+            flattened_list.append(sublist)
+    return flattened_list
     
 def get_tif_location(tif_path, target_epsg):
     """
