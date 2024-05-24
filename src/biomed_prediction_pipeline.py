@@ -4,7 +4,7 @@ sys.path.append('../')
 import os
 import argparse
 
-from utils.imageprocessing import split_tif, convert_TIFtoPNG, create_SHP
+from utils.imageprocessing import split_tif, remove_empty_images, convert_TIFtoPNG, create_SHP
 
 from models.biomed_UNet import model as UNetModel
 from models.biomed_UNet.predict import predict_img, mask_to_image
@@ -22,6 +22,7 @@ import shutil
 '''
 pipeline:
     - split tif into tiles
+    - drop empty tifs
     - convert tifs to pngs
     - prediction (pngs -> masks)
     - convert masks to one shp
@@ -67,6 +68,16 @@ if __name__ == '__main__':
     
     logging.info(f'🏁 TIF splitage finished in {int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}\n\t- split size: {num_rows}x{num_cols}\n\t- tile size: {args.tile_size}')
 
+
+    #drop empty tifs
+    logging.info(f"⚙️ Drop empty TIFs:\n\t- tifs path: {os.path.join(args.working_folder_path,'tifs')}")
+    empty_tiles_count, elapsed_time = remove_empty_images(os.path.join(args.working_folder_path,'tifs'))
+    hours, remainder = divmod(elapsed_time, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    
+    logging.info(f'🏁 Drop empties finished in {int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}\n\t- empty tiles count: {empty_tiles_count}')
+    
+    #tifs to pngs
     logging.info(f"⚙️ Convert TIFs to PNGs:\n\t- tifs path: {os.path.join(args.working_folder_path,'tifs')}\n\t- pngs path: {os.path.join(args.working_folder_path,'images')}")
     elapsed_time = convert_TIFtoPNG(
         os.path.join(args.working_folder_path,'tifs'),

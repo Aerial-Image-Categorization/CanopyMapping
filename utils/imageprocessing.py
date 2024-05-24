@@ -451,7 +451,28 @@ def convert_PNGtoSHP(folder,out_folder, result_folder):
                 count=count+1
             pbar.update(1)
     logging.info(f'conversion finished\n\tfrom: {out_folder}\n\tto: {result_folder}\n\tamount: {count}')
+    
+def is_image_all_white(image_path):
+    """Check if the image at the given path is all white."""
+    with Image.open(image_path) as img:
+        pixels = list(img.getdata())
+        return all(pixel > (200, 200, 200) for pixel in pixels)
 
+def remove_empty_images(folder_path):
+    """Remove all images in the given folder that contain only white pixels."""
+    start_time = time.time()
+    counter = 0
+    with tqdm(total=len(os.listdir(folder_path)), desc='drop empty images') as pbar:
+        for filename in os.listdir(folder_path):
+            file_path = os.path.join(folder_path, filename)
+            if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tif')):
+                if is_image_all_white(file_path):
+                    #print(f"Removing {file_path} (all white)")
+                    os.remove(file_path)
+                    counter+=1
+            pbar.update(1)
+    return counter, time.time()-start_time
+                    
 def create_SHP(folder,out_folder, result_path):
     """
     w/ getPoints_fromPNG(), rasterio, geopandas
