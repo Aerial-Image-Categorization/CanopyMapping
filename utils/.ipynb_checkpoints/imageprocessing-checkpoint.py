@@ -121,7 +121,7 @@ def split(tif_path, shp_path, output_folder, tile_size=(250, 250)):
     if not os.path.exists(shps_path_folder):
         os.makedirs(shps_path_folder)
     
-    logging.info(f'⚙️ TIF splitage started:\n\t- splitted shp: {tif_path}\n\t- to: {tifs_path_folder}')
+    logging.info(f'⚙️ TIF splitting started:\n\t- splitted shp: {tif_path}\n\t- to: {tifs_path_folder}')
     
     num_cols, num_rows, elapsed_time = split_tif(tif_path,tifs_path_folder,tile_size)
 
@@ -129,14 +129,14 @@ def split(tif_path, shp_path, output_folder, tile_size=(250, 250)):
     minutes, seconds = divmod(remainder, 60)
     logging.info(f'✅ TIF splitting ended in {int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}\n\t- split size: {num_rows}x{num_cols}\n\t- tile size: {tile_size}')
 
-    logging.info(f'⚙️ SHP splitage started:\n\t- splitted shp: {shp_path}\n\t- to: {shps_path_folder}')
+    logging.info(f'⚙️ SHP splitting started:\n\t- splitted shp: {shp_path}\n\t- to: {shps_path_folder}')
     
     count, elapsed_time = split_shp(shp_path, tifs_path_folder, shps_path_folder)
     hours, remainder = divmod(elapsed_time, 3600)
     minutes, seconds = divmod(remainder, 60)
     logging.info(f'✅ SHP splitting ended in {int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}\n\t- split size: {count}')
     if num_rows*num_cols != count:
-        logging.warning(f'⚠️ TIFs - SHPs count mismatch: {num_rows*num_cols} - {count}')
+        logging.warning(f'⚠️ tifs - shps count mismatch: {num_rows*num_cols} - {count}')
 
 def convert_SHPtoPNG(tif_path, shp_path, png_path, tile_size=(250,250), point_size=1, bg_color='black', fg_color='white'):
     '''
