@@ -118,3 +118,58 @@ def check_images_size(dataset_path):
                 print(f'test: {image_name} \n\timage shape: {image.shape}\n\tmask shape: {image_mask.shape}')
         except:
             print(f'error: {image_name}')
+
+import rasterio
+from rasterio.enums import Resampling
+
+def ResampleTIF(upscale_factor, tif_path, resampled_tif_path):
+    tif_image = rasterio.open(tif_path)
+    # resample
+    data = tif_image.read(
+        out_shape=(
+            tif_image.count,
+            int(tif_image.height * upscale_factor),
+            int(tif_image.width * upscale_factor)
+        ),
+        resampling=Resampling.bilinear
+    )
+    
+    #pixel_width, pixel_height = tif_image.res
+    #print(f"Transformed pixel size: {pixel_width} x {pixel_height}")
+    
+    # scale image transform
+    new_transform = tif_image.transform * tif_image.transform.scale(
+        (tif_image.width / data.shape[-1]),
+        (tif_image.height / data.shape[-2])
+    )
+    #pixel_width = transform.a
+    #pixel_height = -transform.e
+    
+    #print(f"Transformed pixel size: {pixel_width} x {pixel_height}")
+    #pixel_area = pixel_width * pixel_height
+    #print(tif_image.transform,data.shape,transform)
+
+    profile = tif_image.profile
+    profile.update({
+        'height': data.shape[1],
+        'width': data.shape[2],
+        'transform': new_transform
+    })
+    rasterio.open(resampled_tif_path, 'w', **profile).write(data)
+
+def check_resolution(desired_res, tif_path, round_accuracy):
+    '''
+    Projected Coordinate System (PCS): the units are typically in meters or feet.
+    Geographic Coordinate System (GCS): the units are typically in degrees.
+    The CRS (Coordinate Reference System) EPSG:23700 corresponds to the "HD72 / EOV" projection.
+    This is a projected coordinate system used in Hungary, and the units for this CRS are meters.
+    '''
+    tif_image = rasterio.open(tif_path)
+    p_width, p_height = tif_image.res
+    p_width_normalized = round(p_width,round_accuracy)
+    p_height_normalized = round(p_height,round_accuracy)
+    #print(p_width_normalized,p_height_normalized)
+    
+    actual_res = p_width_normalized
+    ratio = actual_res/desired_res
+    return ratio
