@@ -2,6 +2,11 @@ import sys
 sys.path.append('../')
 
 import os
+import logging
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s',
+                    filename='../logs/create-dataset.log',#'../logs/image_processing.log',
+                    filemode='a')
 import argparse
 
 from utils.imageprocessing import split, createPNG_Dataset
@@ -13,7 +18,6 @@ import torch
 from torch.utils.data import DataLoader, random_split
 
 import shutil
-import logging
 
 '''
 pipeline:
@@ -21,7 +25,6 @@ pipeline:
     - set_CRS
     - createPNG_Dataset
     - train-test split
-    - 
     - train-validation split
     - drop outlier pairs from any set
     - drop empty pairs from train & validation set
@@ -50,27 +53,27 @@ if __name__ == '__main__':
     os.makedirs(os.path.join(dataset_folder, 'test','images'), exist_ok=True)
     os.makedirs(os.path.join(dataset_folder, 'test','masks'), exist_ok=True)
     
-    os.makedirs(os.path.join(dataset_folder,'standard','original'),exist_ok=True) #folder
-    os.makedirs(os.path.join(dataset_folder,'standard','formatted'),exist_ok=True) #out_folder
+    os.makedirs(os.path.join(dataset_folder,'all','original'),exist_ok=True) #folder
+    os.makedirs(os.path.join(dataset_folder,'all','formatted'),exist_ok=True) #out_folder
 
     #split into tiles
     split(
         tif_path,
         shp_path,
-        os.path.join(dataset_folder,'standard','original'),
+        os.path.join(dataset_folder,'all','original'),
         size
     )
     
     #set epsg
     set_valid_CRS(
-        os.path.join(dataset_folder,'standard','original','shps'),
+        os.path.join(dataset_folder,'all','original','shps'),
         desired_crs_epsg=23700
     )
     
     #format
     if createPNG_Dataset(
-        os.path.join(dataset_folder,'standard','original'),
-        os.path.join(dataset_folder,'standard','formatted'),
+        os.path.join(dataset_folder,'all','original'),
+        os.path.join(dataset_folder,'all','formatted'),
         size,
         point_size=28,
         grayscale=False
@@ -79,20 +82,19 @@ if __name__ == '__main__':
 
     #train - test
     dataset = ImageNameDataset(
-        os.path.join(dataset_folder,'standard','formatted'),
+        os.path.join(dataset_folder,'all','formatted'),
         sort = True
     )
-    
-    print(len([sample['image'] for sample in dataset]),len([sample['mask'] for sample in dataset]))
-
     images_train, images_test, masks_train, masks_test = middle_split(
         [sample['image'] for sample in dataset],
         [sample['mask'] for sample in dataset],
         train_size
     )
 
+    print(len([sample['image'] for sample in dataset]),len([sample['mask'] for sample in dataset]))
     print(len(images_train),len(images_test),len(masks_train),len(masks_test))
-    
+
+    #move
     for path in images_train:
         shutil.copy(path,os.path.join(dataset_folder, 'train','images'))
     for path in masks_train:
@@ -120,6 +122,7 @@ if __name__ == '__main__':
 
     print(len(images_train),len(images_valid),len(masks_train),len(masks_valid))
 
+    #move
     for path in images_valid:
         shutil.copy(path,os.path.join(dataset_folder, 'val','images'))
     for path in masks_valid:
