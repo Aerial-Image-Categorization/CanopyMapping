@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO,
                     filemode='a')
 import argparse
 
-from utils.imageprocessing import split, createPNG_Dataset
+from utils.imageprocessing import split, createPNG_Dataset, remove_empty_images
 from utils.datasetvalidation import set_valid_CRS
 
 from utils.dataloading import ImageNameDataset
@@ -18,15 +18,17 @@ import torch
 from torch.utils.data import DataLoader, random_split
 
 import shutil
+import time
+import pandas as pd
 
 '''
 pipeline:
     - split
+    - drop outlier pairs
     - set_CRS
     - createPNG_Dataset
     - train-test split
     - train-validation split
-    - drop outlier pairs from any set
     - drop empty pairs from train & validation set
     - augmentation on train set
 '''
@@ -64,6 +66,14 @@ if __name__ == '__main__':
         size
     )
     
+    #drop empty tifs
+    logging.info(f"⚙️ Drop empty TIFs:\n\t- tifs path: {os.path.join(dataset_folder,'all','original','tifs')}")
+    empty_tiles_count, elapsed_time = remove_empty_images(os.path.join(dataset_folder,'all','original','tifs'))
+    hours, remainder = divmod(elapsed_time, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    logging.info(f'🏁 Drop empties finished in {int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}\n\t- empty tiles count: {empty_tiles_count}')
+    
+    
     #set epsg
     set_valid_CRS(
         os.path.join(dataset_folder,'all','original','shps'),
@@ -80,6 +90,9 @@ if __name__ == '__main__':
     ) == False:
         raise Exception('ERROR: check the logs')
 
+    #train-valid.-test split
+    start_time = time.time()
+    
     #train - test
     dataset = ImageNameDataset(
         os.path.join(dataset_folder,'all','formatted'),
@@ -88,11 +101,8 @@ if __name__ == '__main__':
     images_train, images_test, masks_train, masks_test = middle_split(
         [sample['image'] for sample in dataset],
         [sample['mask'] for sample in dataset],
-        train_size
+        round(train_size+valid_size,6)
     )
-
-    print(len([sample['image'] for sample in dataset]),len([sample['mask'] for sample in dataset]))
-    print(len(images_train),len(images_test),len(masks_train),len(masks_test))
 
     #move
     for path in images_train:
@@ -105,7 +115,8 @@ if __name__ == '__main__':
         shutil.copy(path,os.path.join(dataset_folder, 'test','masks'))
 
     #train - validation
-    valid_size = valid_size / train_size
+    valid_size_orig = valid_size
+    valid_size = valid_size / (train_size+valid_size)
     dataset = ImageNameDataset(
         os.path.join(dataset_folder, 'train'),
         sort = True
@@ -120,15 +131,20 @@ if __name__ == '__main__':
     images_valid = [sample['image'] for sample in valid_dataset]
     masks_valid = [sample['mask'] for sample in valid_dataset]
 
-    print(len(images_train),len(images_valid),len(masks_train),len(masks_valid))
-
     #move
     for path in images_valid:
-        shutil.copy(path,os.path.join(dataset_folder, 'val','images'))
+        shutil.move(path,os.path.join(dataset_folder, 'val','images'))
     for path in masks_valid:
-        shutil.copy(path,os.path.join(dataset_folder, 'val','masks'))
+        shutil.move(path,os.path.join(dataset_folder, 'val','masks'))
 
-
-
-
+    valid_size = valid_size_orig
+    hours, remainder = divmod(time.time() - start_time, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    df = pd.DataFrame({
+        'Set': ['Train', 'Validation', 'Test', 'SUM'],
+        'Size': [round(train_size, 5), round(valid_size, 5), round(1 - train_size - valid_size, 5),round(train_size,5)+ round(valid_size, 5)+ round(1 - train_size - valid_size, 5)],
+        'Amount': [len(images_train), len(images_valid), len(images_test),len(images_train)+ len(images_valid)+ len(images_test)]
+    })
+    print('Train-Validation-Test Splitage finished')
+    logging.info(f'🏁 Train-Validation-Test Splitage finished in {int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}\n{df.to_string(index=False)}')
 
