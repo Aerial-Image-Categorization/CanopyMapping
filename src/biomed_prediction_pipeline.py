@@ -2,6 +2,11 @@ import sys
 sys.path.append('../')
 
 import os
+import logging
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s',
+                    filename='./logs/biomed_prediction.log',
+                    filemode='w')
 import argparse
 
 from utils.imageprocessing import split_tif, remove_empty_images, convert_TIFtoPNG, create_SHP
@@ -12,7 +17,6 @@ from torch.utils.data import DataLoader
 import torch
 from PIL import Image
 
-import logging
 
 from tqdm.auto import tqdm
 
@@ -29,10 +33,6 @@ pipeline:
 '''
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s',
-                    filename='./logs/biomed_prediction.log',
-                    filemode='w')
     #read arguments
     parser = argparse.ArgumentParser()
     
