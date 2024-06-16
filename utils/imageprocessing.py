@@ -318,7 +318,7 @@ def createPNG_Dataset(folder, out_folder, tile_size=(250,250),point_size=1,bg_co
     w/ convert_SHPtoPNG(), gdal
     pattern: out_folder/{images / masks}/tile_{ext.}_{i}_{j}.{ext.}
     """
-    logging.info(f'⚙️ Creating DATASET:\n\t- from: {folder}\n\t- to: {out_folder}\n\t- tile_size: {tile_size}\n\t- point size: {point_size}\n\t- background color: {bg_color}\n\t- foreground color: {fg_color}')
+    logging.info(f'⚙️ Creating DATASET:\n\t- from: {folder}\n\t- to: {out_folder}\n\t- tile_size: {tile_size}\n\t- point size: {point_size}\n\t- foreground color: {fg_color}\n\t- background color: {bg_color}')
     start_time = time.time()
     
     tifs_folder = os.path.join(folder, 'tifs')
