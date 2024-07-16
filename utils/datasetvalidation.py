@@ -7,17 +7,60 @@ import gc
 import geopandas as gpd
 import rasterio
 from rasterio.crs import CRS
+from PIL import Image
 import cv2
 import shutil
 
 import time
 import logging
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s',
-                    filename='../logs/image_processing.log',
-                    filemode='a')
+#logging.basicConfig(level=logging.INFO,
+#                    format='%(asctime)s - %(levelname)s - %(message)s',
+#                    filename='../logs/image_processing.log',
+#                    filemode='a')
 
-# %%
+def dropna_PNGs(folder,destination_folder='empty_pairs', pattern = r'^tile_shp.*\.png$'):
+    '''
+    folder structure:
+        - folder
+            - images
+            - masks
+            - <destination_folder>
+                - images
+                - masks
+    returns: 
+        -   number of removed image-mask pairs
+        -   runtime
+    '''
+    logging.info(f'⚙️ DROP PNGs with zero points started:\n\t- pngs folder: {folder}')
+    start_time = time.time()
+
+    os.makedirs(os.path.join(folder,destination_folder), exist_ok=True)
+    
+    bin_list = []
+    os.makedirs(os.path.join(folder,destination_folder,'images'), exist_ok=True)
+    os.makedirs(os.path.join(folder,destination_folder,'masks'), exist_ok=True)
+    
+    images = os.listdir(os.path.join(folder,'images'))
+    masks = os.listdir(os.path.join(folder,'masks'))
+    total_length = len(masks)
+    with tqdm(total=total_length) as pbar:
+        for filename in masks:
+            pixels = list(Image.open(os.path.join(folder, 'masks', filename)).getdata())
+            if all(pixel == (0, 0, 0) for pixel in pixels): #checking if the mask only contains black pixels
+                splitted = filename.split('.')[0].split('_')
+                bin_list.append((splitted[2],splitted[3]))
+                shutil.move(os.path.join(folder,'masks', filename), os.path.join(folder,destination_folder,'masks', filename))
+                shutil.move(os.path.join(folder,'images', filename.replace('shp', 'tif')),
+                        os.path.join(folder,destination_folder,'images', filename.replace('shp', 'tif')))
+            pbar.update(1)
+            
+    gc.collect()
+    elapsed_time = time.time() - start_time
+    hours, remainder = divmod(elapsed_time, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    logging.info(f'✅ DROP PNGs ended in {int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}\n\t- drop count: {len(bin_list)}')
+    return bin_list, elapsed_time
+
 def dropna_SHPs(folder,destination_folder='dropnas', pattern = r'^tile_shp.*\.shp$'):
     '''
     returns: 
