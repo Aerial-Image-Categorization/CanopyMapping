@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO,
 import argparse
 
 from utils.imageprocessing import split, createPNG_Dataset, remove_empty_images
-from utils.datasetvalidation import set_valid_CRS
+from utils.datasetvalidation import set_valid_CRS, dropna_PNGs
 
 from utils.dataloading import ImageNameDataset
 from utils.traintestsplit import middle_split
@@ -40,7 +40,7 @@ if __name__ == '__main__':
                     filename='./logs/create-dataset.log',
                     filemode='w')
     
-    dataset_folder = '../data/2024-06-14-dataset'
+    dataset_folder = '../data/2024-07-16-dataset'
     size = (200,200)
     tif_path = '../data/test_data/orig_test2.tif'
     shp_path = '../data/all_data/Fa_pontok.shp'#'../data/test_data/conc_biomed_full.shp'
@@ -147,4 +147,8 @@ if __name__ == '__main__':
     })
     print('Train-Validation-Test Splitage finished')
     logging.info(f'🏁 Train-Validation-Test Splitage finished in {int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}\n{df.to_string(index=False)}')
+
+    #drop empty pairs from train & validation sets
+    train_bin_list, _ = dropna_PNGs(os.path.join(dataset_folder, 'train'))
+    val_bin_list, _ = dropna_PNGs(os.path.join(dataset_folder, 'val'))
 
