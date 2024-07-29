@@ -152,3 +152,5 @@ if __name__ == '__main__':
     train_bin_list, _ = dropna_PNGs(os.path.join(dataset_folder, 'train'))
     val_bin_list, _ = dropna_PNGs(os.path.join(dataset_folder, 'val'))
 
+    #augmentation
+
