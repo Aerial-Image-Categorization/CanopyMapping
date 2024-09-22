@@ -1,4 +1,8 @@
-# TreeDetection
+# CanopyMapping
+
+## Tree Localization
+
+## Canopy Segmentation
 
 Subproject of the CanopyMapping project for the recognition and localization of trees on orthophotos.
 
