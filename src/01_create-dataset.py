@@ -1,7 +1,9 @@
 import sys
-sys.path.append('../')
+#sys.path.append('../')
 
 import os
+os.environ['GTIFF_SRS_SOURCE'] = 'EPSG'
+
 import logging
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -20,6 +22,9 @@ from torch.utils.data import DataLoader, random_split
 import shutil
 import time
 import pandas as pd
+
+from utils.datasetvalidation import check_images_size
+from utils.augmentation import rotate_train_pairs
 
 '''
 pipeline:
@@ -40,10 +45,10 @@ if __name__ == '__main__':
                     filename='./logs/create-dataset.log',
                     filemode='w')
     
-    dataset_folder = '../data/2024-07-16-dataset'
+    dataset_folder = '../data/2024-09-29-dataset'
     size = (200,200)
-    tif_path = '../data/test_data/orig_test2.tif'
-    shp_path = '../data/all_data/Fa_pontok.shp'#'../data/test_data/conc_biomed_full.shp'
+    tif_path = '../data/raw/2023-02-23_Bakonyszucs_actual.tif'
+    shp_path = '../data/raw/Fa_pontok.shp'#'../data/test_data/conc_biomed_full.shp'
     train_size = 0.8
     valid_size = 0.1
     batch_size = 1
@@ -152,5 +157,29 @@ if __name__ == '__main__':
     train_bin_list, _ = dropna_PNGs(os.path.join(dataset_folder, 'train'))
     val_bin_list, _ = dropna_PNGs(os.path.join(dataset_folder, 'val'))
 
-    #augmentation
+    #check images size
+    invalid_train_imgs, invalid_val_imgs = check_images_size(dataset_folder)
+    for path in invalid_train_imgs:
+        os.remove(path)
+    #for path in invalid_val_imgs:
+    #    os.remove(path)
 
+    #augmentation
+    os.makedirs(os.path.join(dataset_folder, 'aug_train','images'), exist_ok=True)
+    os.makedirs(os.path.join(dataset_folder, 'aug_train','masks'), exist_ok=True)
+
+    train_set = ImageNameDataset(os.path.join(dataset_folder, 'aug_train'), sort = True)
+    
+    train_images = [sample['image'] for sample in train_set]
+    train_masks = [sample['mask'] for sample in train_set]
+
+    for path in train_images:
+        shutil.copy(path,train_images_folder)
+    for path in train_masks:
+        shutil.copy(path,train_masks_folder)
+
+    
+    rotate_train_pairs(
+        train_images_folder = os.path.join(dataset_folder, 'aug_train','images'),
+        train_masks_folder = os.path.join(dataset_folder, 'aug_train','masks')
+    )    
