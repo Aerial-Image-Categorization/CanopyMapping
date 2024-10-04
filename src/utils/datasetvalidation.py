@@ -1,5 +1,6 @@
 # %%
 import os
+os.environ['GTIFF_SRS_SOURCE'] = 'EPSG'
 import re
 from tqdm.auto import tqdm
 import time
@@ -7,17 +8,59 @@ import gc
 import geopandas as gpd
 import rasterio
 from rasterio.crs import CRS
+from PIL import Image
 import cv2
 import shutil
-
 import time
 import logging
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s',
-                    filename='../logs/image_processing.log',
-                    filemode='a')
+#logging.basicConfig(level=logging.INFO,
+#                    format='%(asctime)s - %(levelname)s - %(message)s',
+#                    filename='../logs/image_processing.log',
+#                    filemode='a')
 
-# %%
+def dropna_PNGs(folder,destination_folder='empty_pairs', pattern = r'^tile_shp.*\.png$'):
+    '''
+    folder structure:
+        - folder
+            - images
+            - masks
+            - <destination_folder>
+                - images
+                - masks
+    returns: 
+        -   number of removed image-mask pairs
+        -   runtime
+    '''
+    logging.info(f'⚙️ DROP PNGs with zero points started:\n\t- pngs folder: {folder}')
+    start_time = time.time()
+
+    os.makedirs(os.path.join(folder,destination_folder), exist_ok=True)
+    
+    bin_list = []
+    os.makedirs(os.path.join(folder,destination_folder,'images'), exist_ok=True)
+    os.makedirs(os.path.join(folder,destination_folder,'masks'), exist_ok=True)
+    
+    images = os.listdir(os.path.join(folder,'images'))
+    masks = os.listdir(os.path.join(folder,'masks'))
+    total_length = len(masks)
+    with tqdm(total=total_length) as pbar:
+        for filename in masks:
+            pixels = list(Image.open(os.path.join(folder, 'masks', filename)).getdata())
+            if all(pixel == (0, 0, 0) for pixel in pixels): #checking if the mask only contains black pixels
+                splitted = filename.split('.')[0].split('_')
+                bin_list.append((splitted[2],splitted[3]))
+                shutil.move(os.path.join(folder,'masks', filename), os.path.join(folder,destination_folder,'masks', filename))
+                shutil.move(os.path.join(folder,'images', filename.replace('shp', 'tif')),
+                        os.path.join(folder,destination_folder,'images', filename.replace('shp', 'tif')))
+            pbar.update(1)
+            
+    gc.collect()
+    elapsed_time = time.time() - start_time
+    hours, remainder = divmod(elapsed_time, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    logging.info(f'✅ DROP PNGs ended in {int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}\n\t- drop count: {len(bin_list)}')
+    return bin_list, elapsed_time
+
 def dropna_SHPs(folder,destination_folder='dropnas', pattern = r'^tile_shp.*\.shp$'):
     '''
     returns: 
@@ -94,14 +137,12 @@ def check_images_size(dataset_path):
            - train
                - images
                - masks
-           - test
+           - val
                - images
                - masks            
     '''
-    out_train = []
-    out_test = []
     train_images_path = os.path.join(dataset_path, 'train','images')
-    test_images_path = os.path.join(dataset_path, 'test','images')
+    test_images_path = os.path.join(dataset_path, 'val','images')
     
     for image_name in os.listdir(train_images_path):
         image = cv2.imread(os.path.join(train_images_path,image_name))
@@ -109,7 +150,6 @@ def check_images_size(dataset_path):
         try:
             if image.shape != image_mask.shape:
                 print(f'train: {image_name} \n\timage shape: {image.shape}\n\tmask shape: {image_mask.shape}')
-                out_train.append(os.path.join(train_images_path,image_name))
         except:
             print(f'error: {image_name}')
             
@@ -119,9 +159,60 @@ def check_images_size(dataset_path):
         try:
             if image.shape != image_mask.shape:
                 print(f'test: {image_name} \n\timage shape: {image.shape}\n\tmask shape: {image_mask.shape}')
-                out_test.append(os.path.join(test_images_path,image_name))
-                
         except:
             print(f'error: {image_name}')
 
-    return out_train, out_test
+import rasterio
+from rasterio.enums import Resampling
+
+def ResampleTIF(upscale_factor, tif_path, resampled_tif_path):
+    tif_image = rasterio.open(tif_path)
+    # resample
+    data = tif_image.read(
+        out_shape=(
+            tif_image.count,
+            int(tif_image.height * upscale_factor),
+            int(tif_image.width * upscale_factor)
+        ),
+        resampling=Resampling.bilinear
+    )
+    
+    #pixel_width, pixel_height = tif_image.res
+    #print(f"Transformed pixel size: {pixel_width} x {pixel_height}")
+    
+    # scale image transform
+    new_transform = tif_image.transform * tif_image.transform.scale(
+        (tif_image.width / data.shape[-1]),
+        (tif_image.height / data.shape[-2])
+    )
+    #pixel_width = transform.a
+    #pixel_height = -transform.e
+    
+    #print(f"Transformed pixel size: {pixel_width} x {pixel_height}")
+    #pixel_area = pixel_width * pixel_height
+    #print(tif_image.transform,data.shape,transform)
+
+    profile = tif_image.profile
+    profile.update({
+        'height': data.shape[1],
+        'width': data.shape[2],
+        'transform': new_transform
+    })
+    rasterio.open(resampled_tif_path, 'w', **profile).write(data)
+
+def check_resolution(desired_res, tif_path, round_accuracy):
+    '''
+    Projected Coordinate System (PCS): the units are typically in meters or feet.
+    Geographic Coordinate System (GCS): the units are typically in degrees.
+    The CRS (Coordinate Reference System) EPSG:23700 corresponds to the "HD72 / EOV" projection.
+    This is a projected coordinate system used in Hungary, and the units for this CRS are meters.
+    '''
+    tif_image = rasterio.open(tif_path)
+    p_width, p_height = tif_image.res
+    p_width_normalized = round(p_width,round_accuracy)
+    p_height_normalized = round(p_height,round_accuracy)
+    #print(p_width_normalized,p_height_normalized)
+    
+    actual_res = p_width_normalized
+    ratio = actual_res/desired_res
+    return ratio

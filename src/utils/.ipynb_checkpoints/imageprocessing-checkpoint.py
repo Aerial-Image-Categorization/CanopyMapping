@@ -357,7 +357,10 @@ def createPNG_Dataset(folder, out_folder, tile_size=(250,250),point_size=1,bg_co
             for file in files:
                 tif_path = os.path.join(tifs_folder, file.replace('_shp_', '_tif_').replace('.shp', '.tif'))
                 out_path = os.path.join(out_shps_folder, os.path.splitext(file)[0] + '.png')
-                convert_SHPtoPNG(tif_path, os.path.join(shps_folder, file), out_path, tile_size, point_size, bg_color, fg_color)
+                try:
+                    convert_SHPtoPNG(tif_path, os.path.join(shps_folder, file), out_path, tile_size, point_size, bg_color, fg_color)
+                except Exception as e:
+                    logging.warning(f"Conversion error at \n\t{tif_path}\n\t{out_path}\nerror message: {e}")
                 pbar.update(1)
     except rasterio._err.CPLE_NotSupportedError as e:
         logging.error(f'🚨 ERROR: bad EPSG\n\tmessage: {e}')

@@ -1,5 +1,6 @@
 # %%
 import os
+os.environ['GTIFF_SRS_SOURCE'] = 'EPSG'
 import re
 from tqdm.auto import tqdm
 import time
@@ -10,7 +11,6 @@ from rasterio.crs import CRS
 from PIL import Image
 import cv2
 import shutil
-
 import time
 import logging
 #logging.basicConfig(level=logging.INFO,
@@ -137,12 +137,12 @@ def check_images_size(dataset_path):
            - train
                - images
                - masks
-           - test
+           - val
                - images
                - masks            
     '''
     train_images_path = os.path.join(dataset_path, 'train','images')
-    test_images_path = os.path.join(dataset_path, 'test','images')
+    test_images_path = os.path.join(dataset_path, 'val','images')
     
     for image_name in os.listdir(train_images_path):
         image = cv2.imread(os.path.join(train_images_path,image_name))

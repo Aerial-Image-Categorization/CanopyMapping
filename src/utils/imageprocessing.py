@@ -17,10 +17,10 @@ from tqdm.auto import tqdm
 import time
 
 import logging
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s',
-                    filename='../logs/image_processing.log',
-                    filemode='a')
+#logging.basicConfig(level=logging.INFO,
+#                    format='%(asctime)s - %(levelname)s - %(message)s',
+#                    filename='../logs/test.log',#'../logs/image_processing.log',
+#                    filemode='a')
 
 '''
 pipeline:
@@ -113,6 +113,7 @@ def split(tif_path, shp_path, output_folder, tile_size=(250, 250)):
     w/ split_tif() & split_shp() functions
     pattern: out_folder/{tifs / shps}/tile_{ext.}_{i}_{j}.{ext.}
     """
+
     tifs_path_folder = os.path.join(output_folder, 'tifs')
     shps_path_folder = os.path.join(output_folder, 'shps')
     
@@ -121,7 +122,7 @@ def split(tif_path, shp_path, output_folder, tile_size=(250, 250)):
     if not os.path.exists(shps_path_folder):
         os.makedirs(shps_path_folder)
     
-    logging.info(f'⚙️ TIF splitting started:\n\t- splitted shp: {tif_path}\n\t- to: {tifs_path_folder}')
+    logging.info(f'⚙️ TIF splitage started:\n\t- splitted shp: {tif_path}\n\t- to: {tifs_path_folder}')
     
     num_cols, num_rows, elapsed_time = split_tif(tif_path,tifs_path_folder,tile_size)
 
@@ -129,14 +130,14 @@ def split(tif_path, shp_path, output_folder, tile_size=(250, 250)):
     minutes, seconds = divmod(remainder, 60)
     logging.info(f'✅ TIF splitting ended in {int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}\n\t- split size: {num_rows}x{num_cols}\n\t- tile size: {tile_size}')
 
-    logging.info(f'⚙️ SHP splitting started:\n\t- splitted shp: {shp_path}\n\t- to: {shps_path_folder}')
+    logging.info(f'⚙️ SHP splitage started:\n\t- splitted shp: {shp_path}\n\t- to: {shps_path_folder}')
     
     count, elapsed_time = split_shp(shp_path, tifs_path_folder, shps_path_folder)
     hours, remainder = divmod(elapsed_time, 3600)
     minutes, seconds = divmod(remainder, 60)
     logging.info(f'✅ SHP splitting ended in {int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}\n\t- split size: {count}')
     if num_rows*num_cols != count:
-        logging.warning(f'⚠️ tifs - shps count mismatch: {num_rows*num_cols} - {count}')
+        logging.warning(f'⚠️ TIFs - SHPs count mismatch: {num_rows*num_cols} - {count}')
 
 def convert_SHPtoPNG(tif_path, shp_path, png_path, tile_size=(250,250), point_size=1, bg_color='black', fg_color='white'):
     '''
@@ -317,7 +318,7 @@ def createPNG_Dataset(folder, out_folder, tile_size=(250,250),point_size=1,bg_co
     w/ convert_SHPtoPNG(), gdal
     pattern: out_folder/{images / masks}/tile_{ext.}_{i}_{j}.{ext.}
     """
-    logging.info(f'⚙️ Creating DATASET:\n\t- from: {folder}\n\t- to: {out_folder}\n\t- tile_size: {tile_size}\n\t- point size: {point_size}\n\t- background color: {bg_color}\n\t- foreground color: {fg_color}')
+    logging.info(f'⚙️ Creating DATASET:\n\t- from: {folder}\n\t- to: {out_folder}\n\t- tile_size: {tile_size}\n\t- point size: {point_size}\n\t- foreground color: {fg_color}\n\t- background color: {bg_color}')
     start_time = time.time()
     
     tifs_folder = os.path.join(folder, 'tifs')
@@ -351,19 +352,26 @@ def createPNG_Dataset(folder, out_folder, tile_size=(250,250),point_size=1,bg_co
             
     files = [f for f in os.listdir(shps_folder) if f.endswith('.shp')]
     total_count = len(files)
-    with tqdm(total=total_count, desc='Processing shp files') as pbar:
-        for file in files:
-            tif_path = os.path.join(tifs_folder, file.replace('_shp_', '_tif_').replace('.shp', '.tif'))
-            out_path = os.path.join(out_shps_folder, os.path.splitext(file)[0] + '.png')
-            convert_SHPtoPNG(tif_path, os.path.join(shps_folder, file), out_path, tile_size, point_size, bg_color, fg_color)
-            pbar.update(1)
-
-    elapsed_time = time.time() - start_time
-    hours, remainder = divmod(elapsed_time, 3600)
-    minutes, seconds = divmod(remainder, 60)
-    
-    logging.info(f'✅ DATASET created in: {int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}')
-    return elapsed_time
+    try:
+        with tqdm(total=total_count, desc='Processing shp files') as pbar:
+            for file in files:
+                tif_path = os.path.join(tifs_folder, file.replace('_shp_', '_tif_').replace('.shp', '.tif'))
+                out_path = os.path.join(out_shps_folder, os.path.splitext(file)[0] + '.png')
+                try:
+                    convert_SHPtoPNG(tif_path, os.path.join(shps_folder, file), out_path, tile_size, point_size, bg_color, fg_color)
+                except Exception as e:
+                    logging.warning(f"Conversion error at \n\t{tif_path}\n\t{out_path}\nerror message: {e}")
+                pbar.update(1)
+    except rasterio._err.CPLE_NotSupportedError as e:
+        logging.error(f'🚨 ERROR: bad EPSG\n\tmessage: {e}')
+    else:
+        elapsed_time = time.time() - start_time
+        hours, remainder = divmod(elapsed_time, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        
+        logging.info(f'✅ DATASET created in: {int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}')
+        return elapsed_time
+    return False
 def createPNG_Dataset_old(folder, out_folder, tile_size=(250,250),point_size=1,bg_color='black',fg_color='white', grayscale=False):
     """
     creates a dataset from a folder of splitted .tif & .shp files into another folder 
