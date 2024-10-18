@@ -22,7 +22,8 @@ from .scores import dice_loss, jaccard_loss
 import datetime
 
 def train_model(
-        dataset,
+        train_set,
+        valid_set,
         model,
         device,
         epochs: int = 5,
@@ -51,9 +52,9 @@ def train_model(
                  f'\t{"Bilinear" if model.bilinear else "Transposed conv"} upscaling')
 
     # 2. Split into train / validation partitions
-    n_val = int(len(dataset) * val_percent)
-    n_train = len(dataset) - n_val
-    train_set, val_set = random_split(dataset, [n_train, n_val], generator=torch.Generator().manual_seed(0))
+    #n_val = int(len(dataset) * val_percent)
+    #n_train = len(dataset) - n_val
+    #train_set, val_set = random_split(dataset, [n_train, n_val], generator=torch.Generator().manual_seed(0))
 
     # 3. Create data loaders
     loader_args = dict(batch_size=batch_size, num_workers=os.cpu_count(), pin_memory=True)
@@ -174,7 +175,8 @@ def train_model(
 
 
 def train_model_Jaccard(
-        dataset,
+        train_set,
+        valid_set,
         model,
         device,
         epochs: int = 5,
@@ -188,7 +190,7 @@ def train_model_Jaccard(
         momentum: float = 0.999,
         gradient_clipping: float = 1.0,
 ):
-    name='unet-biomed-b6'
+    name='unet-biomed-200-n1-200'
     dir_checkpoint = Path(f'./checkpoints_{name}_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")}')
     
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -203,14 +205,16 @@ def train_model_Jaccard(
                  f'\t{"Bilinear" if model.bilinear else "Transposed conv"} upscaling')
 
     # 2. Split into train / validation partitions
-    n_val = int(len(dataset) * val_percent)
-    n_train = len(dataset) - n_val
-    train_set, val_set = random_split(dataset, [n_train, n_val], generator=torch.Generator().manual_seed(0))
+    #n_val = int(len(dataset) * val_percent)
+    #n_train = len(dataset) - n_val
+    #train_set, val_set = random_split(dataset, [n_train, n_val], generator=torch.Generator().manual_seed(0))
+    n_train = len(train_set)
+    n_val = len(valid_set)
 
     # 3. Create data loaders
     loader_args = dict(batch_size=batch_size, num_workers=os.cpu_count(), pin_memory=True)
     train_loader = DataLoader(train_set, shuffle=True, **loader_args)
-    val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
+    val_loader = DataLoader(valid_set, shuffle=False, drop_last=True, **loader_args)
 
     # (Initialize logging)
     experiment = wandb.init(project='TreeDetection', resume='allow', anonymous='must',name=name, magic=True)
@@ -260,7 +264,7 @@ def train_model_Jaccard(
                     if model.n_classes == 1:
                         #loss = criterion(masks_pred.squeeze(1), true_masks.float())
                         #loss += jaccard_loss(F.sigmoid(masks_pred.squeeze(1)), true_masks.float(), multiclass=False)
-                        loss = jaccard_loss(F.sigmoid(masks_pred.squeeze(1)), true_masks.float(), multiclass=False)
+                        loss = jaccard_loss(torch.sigmoid(masks_pred.squeeze(1)), true_masks.float(), multiclass=False)
                     else:
                         #loss = criterion(masks_pred, true_masks)
                         #loss += jaccard_loss(
@@ -304,13 +308,30 @@ def train_model_Jaccard(
                                 histograms['Gradients/' + tag] = wandb.Histogram(value.grad.data.cpu())
 
                         val_score = evaluate(model, val_loader, device, amp)
-                        scheduler.step(val_score)
 
-                        logging.info('Validation IoU score: {}'.format(val_score))
+                        scheduler.step(val_score['dice_score'])
+
+                        logging.info(f"""Validation scores:
+                        - IoU: {val_score['dice_score']:.4f}
+                        pixel-wise:
+                        - Accuracy: {val_score['px_accuracy']:.4f}
+                        - Precision: {val_score['px_precision']:.4f}
+                        - Recall: {val_score['px_recall']:.4f}
+                        - F1: {val_score['px_f1']:.4f}
+                        object-wise:
+                        - Accuracy: {val_score['ob_accuracy']:.4f}
+                        - Precision: {val_score['ob_precision']:.4f}
+                        - Recall: {val_score['ob_recall']:.4f}
+                        - F1: {val_score['ob_f1']:.4f}""")
+                        
                         try:
                             experiment.log({
                                 'learning rate': optimizer.param_groups[0]['lr'],
-                                'validation IoU': val_score,
+                                'validation IoU': val_score['dice_score'],
+                                'validation Accuracy': val_score['ob_accuracy'],
+                                'validation Precision': val_score['ob_precision'],
+                                'validation Recall': val_score['ob_recall'],
+                                'validation F1-score': val_score['ob_f1'],
                                 'images': wandb.Image(images[0].cpu()),
                                 'masks': {
                                     'true': wandb.Image(true_masks[0].float().cpu()),
@@ -326,6 +347,6 @@ def train_model_Jaccard(
         if save_checkpoint:
             Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
             state_dict = model.state_dict()
-            state_dict['mask_values'] = dataset.mask_values
+            state_dict['mask_values'] = train_set.mask_values
             torch.save(state_dict, str(dir_checkpoint / 'checkpoint_epoch{}.pth'.format(epoch)))
             logging.info(f'Checkpoint {epoch} saved!')
