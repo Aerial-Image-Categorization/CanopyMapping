@@ -6,9 +6,9 @@ from models import my_UNet as UNet
 from models.my_UNet.datasets import ImageDataset
 
 if __name__ == '__main__':
-    train_set_path = '../data/2024-09-29-seg-dataset-200/aug_train'
-    valid_set_path = '../data/2024-09-29-seg-dataset-200/val'
-    epochs = 50
+    train_set_path = '../data/2024-09-29-seg-dataset-400/aug_train'
+    valid_set_path = '../data/2024-09-29-seg-dataset-400/val'
+    epochs = 25
     batch_size = 6
     lr = 1e-8
     scale = 1
