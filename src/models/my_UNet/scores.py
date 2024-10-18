@@ -184,16 +184,16 @@ def calculate_objectwise_classification_metrics2(mask_pred, mask_true, threshold
     true_objects = np.unique(true_labeled)
 
     for pred_obj in pred_objects:
-        #if pred_obj == 0:  # Skip background
-        #    continue
+        if pred_obj == 0:  # Skip background
+            continue
 
         pred_mask = (pred_labeled == pred_obj)
         best_iou = 0
         best_true_obj = None
         
         for true_obj in true_objects:
-            #if true_obj == 0:
-            #    continue
+            if true_obj == 0:
+                continue
 
             true_mask = (true_labeled == true_obj)
             intersection = np.logical_and(pred_mask, true_mask).sum()
@@ -220,6 +220,146 @@ def calculate_objectwise_classification_metrics2(mask_pred, mask_true, threshold
 
     return accuracy, precision, recall, f1
 
+def calculate_objectwise_classification_metrics3(mask_pred, mask_true, threshold = 0.5):
+    true_mask = mask_true.cpu().numpy()
+    pred_mask = mask_pred.cpu().numpy()
+    # Label connected components (objects) in both masks
+    labeled_true = label(true_mask)
+    labeled_pred = label(pred_mask)
 
-import torch
+    # Initialize true positives, false positives, and false negatives
+    tp_mask = np.zeros_like(true_mask)
+    fp_mask = np.zeros_like(true_mask)
+    fn_mask = np.zeros_like(true_mask)
+
+    # Match predicted objects with true objects using Intersection over Union (IoU)
+    true_objects = np.unique(labeled_true)[1:]  # Exclude background (label 0)
+    pred_objects = np.unique(labeled_pred)[1:]
+
+    true_positive_count = 0
+    false_positive_count = 0
+    false_negative_count = 0
+
+    for pred_obj in pred_objects:
+        pred_obj_mask = labeled_pred == pred_obj
+        iou_scores = []
+        for true_obj in true_objects:
+            true_obj_mask = labeled_true == true_obj
+            intersection = np.logical_and(pred_obj_mask, true_obj_mask).sum()
+            union = np.logical_or(pred_obj_mask, true_obj_mask).sum()
+            iou = intersection / union if union > 0 else 0
+            iou_scores.append(iou)
+
+        max_iou = max(iou_scores) if iou_scores else 0
+        if max_iou >= threshold:
+            true_positive_count += 1
+            tp_mask[pred_obj_mask] = 1
+        else:
+            false_positive_count += 1
+            fp_mask[pred_obj_mask] = 1
+
+    for true_obj in true_objects:
+        true_obj_mask = labeled_true == true_obj
+        if not np.logical_and(true_obj_mask, pred_mask).any():
+            false_negative_count += 1
+            fn_mask[true_obj_mask] = 1
+            
+    accuracy = true_positive_count / (true_positive_count + false_positive_count + false_negative_count) if (true_positive_count + false_positive_count + false_negative_count) > 0 else 0
+    precision = true_positive_count / (true_positive_count + false_positive_count) if true_positive_count + false_positive_count > 0 else 0
+    recall = true_positive_count / (true_positive_count + false_negative_count) if true_positive_count + false_negative_count > 0 else 0
+    f1 = 2 * (precision * recall) / (precision + recall) if precision + recall > 0 else 0
+
+    return accuracy, precision, recall, f1, tp_mask, fp_mask, fn_mask
+
+def calculate_objectwise_classification_metrics4(mask_pred, mask_true, threshold=0.5):
+    assert mask_pred.shape == mask_true.shape, f"Shape mismatch: {mask_pred.shape} and {mask_true.shape}"
+    # Ensure we handle batches: mask_pred and mask_true are [B, H, W] tensors
+    batch_size = mask_pred.shape[0]
+    
+    # Initialize cumulative metrics across the batch
+    total_true_positive_count = 0
+    total_false_positive_count = 0
+    total_false_negative_count = 0
+    
+    # Initialize cumulative masks
+    tp_mask_batch = np.zeros_like(mask_true.cpu().numpy())
+    fp_mask_batch = np.zeros_like(mask_true.cpu().numpy())
+    fn_mask_batch = np.zeros_like(mask_true.cpu().numpy())
+    
+    for i in range(batch_size):
+        # Extract each mask in the batch (single image)
+        true_mask = mask_true[i].cpu().numpy()
+        pred_mask = mask_pred[i].cpu().numpy()
+        
+        # Label connected components (objects) in both masks
+        labeled_true = label(true_mask)
+        labeled_pred = label(pred_mask)
+
+        if isinstance(labeled_true, tuple):
+            labeled_true = labeled_true[0]
+        if isinstance(labeled_pred, tuple):
+            labeled_pred = labeled_pred[0]
+        if len(labeled_true.shape) != 2 or len(labeled_pred.shape) != 2:
+            raise ValueError(f"Unexpected shape: labeled_true has shape {labeled_true.shape}, labeled_pred has shape {labeled_pred.shape}")
+            
+        labeled_true = np.asarray(labeled_true, dtype=np.int32)
+        labeled_pred = np.asarray(labeled_pred, dtype=np.int32)
+
+
+        # Initialize true positives, false positives, and false negatives
+        tp_mask = np.zeros_like(true_mask)
+        fp_mask = np.zeros_like(true_mask)
+        fn_mask = np.zeros_like(true_mask)
+
+        # Match predicted objects with true objects using Intersection over Union (IoU)
+        true_objects = np.unique(labeled_true)[1:]  # Exclude background (label 0)
+        pred_objects = np.unique(labeled_pred)[1:]
+
+        true_positive_count = 0
+        false_positive_count = 0
+        false_negative_count = 0
+
+        for pred_obj in pred_objects:
+            pred_obj_mask = labeled_pred == pred_obj
+            iou_scores = []
+            for true_obj in true_objects:
+                true_obj_mask = labeled_true == true_obj
+                intersection = np.logical_and(pred_obj_mask, true_obj_mask).sum()
+                union = np.logical_or(pred_obj_mask, true_obj_mask).sum()
+                iou = intersection / union if union > 0 else 0
+                iou_scores.append(iou)
+
+            max_iou = max(iou_scores) if iou_scores else 0
+            if max_iou >= threshold:
+                true_positive_count += 1
+                tp_mask[pred_obj_mask] = 1
+            else:
+                false_positive_count += 1
+                fp_mask[pred_obj_mask] = 1
+
+        for true_obj in true_objects:
+            true_obj_mask = labeled_true == true_obj
+            if not np.logical_and(true_obj_mask, pred_mask).any():
+                false_negative_count += 1
+                fn_mask[true_obj_mask] = 1
+
+        # Accumulate results for each image in the batch
+        total_true_positive_count += true_positive_count
+        total_false_positive_count += false_positive_count
+        total_false_negative_count += false_negative_count
+
+        # Accumulate the masks
+        tp_mask_batch[i] = tp_mask
+        fp_mask_batch[i] = fp_mask
+        fn_mask_batch[i] = fn_mask
+
+    # Calculate metrics across the whole batch
+    total = total_true_positive_count + total_false_positive_count + total_false_negative_count
+    accuracy = total_true_positive_count / total if total > 0 else 0
+    precision = total_true_positive_count / (total_true_positive_count + total_false_positive_count) if (total_true_positive_count + total_false_positive_count) > 0 else 0
+    recall = total_true_positive_count / (total_true_positive_count + total_false_negative_count) if (total_true_positive_count + total_false_negative_count) > 0 else 0
+    f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+
+    return accuracy, precision, recall, f1, tp_mask_batch, fp_mask_batch, fn_mask_batch
+
 

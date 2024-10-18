@@ -38,7 +38,7 @@ def train_model(
         gradient_clipping: float = 1.0,
 ):
     name='unet-my'
-    dir_checkpoint = Path(f'./checkpoints_{name}_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")}')
+    dir_checkpoint = Path(f'./models/checkpoints/checkpoints_{name}_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")}')
     
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -190,8 +190,8 @@ def train_model_Jaccard(
         momentum: float = 0.999,
         gradient_clipping: float = 1.0,
 ):
-    name='MyUNet-1'
-    dir_checkpoint = Path(f'./checkpoints_{name}_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")}')
+    name='MyUNet-1-400'
+    dir_checkpoint = Path(f'./models/checkpoints/checkpoints_{name}_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")}')
     
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -296,7 +296,7 @@ def train_model_Jaccard(
                 pbar.set_postfix(**{'loss (batch)': loss.item()})
 
                 # Evaluation round
-                division_step = (n_train // (4 * batch_size))
+                division_step = (n_train // (1 * batch_size))
                 if division_step > 0:
                     if global_step % division_step == 0:
                         histograms = {}
@@ -329,12 +329,18 @@ def train_model_Jaccard(
                         try:
                             experiment.log({
                                 'learning rate': optimizer.param_groups[0]['lr'],
-                                'validation Dice': val_score['dice_score'],
-                                'validation IoU': val_score['iou'],
-                                'validation Accuracy': val_score['ob_accuracy'],
-                                'validation Precision': val_score['ob_precision'],
-                                'validation Recall': val_score['ob_recall'],
-                                'validation F1-score': val_score['ob_f1'],
+                                'Segmentation metrics': {
+                                    'Dice':val_score['dice_score'],
+                                    'IoU':val_score['iou']
+                                },
+                                #'validation Dice': val_score['dice_score'],
+                                #'validation IoU': val_score['iou'],
+                                'Classification metrics': {
+                                    'Accuracy': val_score['ob_accuracy'],
+                                    'Precision': val_score['ob_precision'],
+                                    'Recall': val_score['ob_recall'],
+                                    'F1-score': val_score['ob_f1']
+                                },
                                 'images': wandb.Image(images[0].cpu()),
                                 'masks': {
                                     'true': wandb.Image(true_masks[0].float().cpu()),

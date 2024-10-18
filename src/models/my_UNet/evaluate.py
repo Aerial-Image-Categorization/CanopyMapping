@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from tqdm import tqdm
 
-from .scores import multiclass_dice_coeff, dice_coeff, multiclass_jaccard_coeff, calculate_pixelwise_classification_metrics, calculate_objectwise_classification_metrics, calculate_objectwise_classification_metrics2, iou, jaccard_coeff
+from .scores import multiclass_dice_coeff, dice_coeff, multiclass_jaccard_coeff, calculate_pixelwise_classification_metrics, calculate_objectwise_classification_metrics, calculate_objectwise_classification_metrics2, calculate_objectwise_classification_metrics3, iou, jaccard_coeff, calculate_objectwise_classification_metrics4
 
 @torch.inference_mode()
 def evaluate(net, dataloader, device, amp):
@@ -64,8 +64,10 @@ def evaluate(net, dataloader, device, amp):
                 #total_ob_precision += precision
                 #total_ob_recall += recall
                 #total_ob_f1 += f1
-                accuracy, precision, recall, f1 = calculate_objectwise_classification_metrics2(
-                    mask_pred.squeeze(1),
+                #print(mask_true.shape, mask_pred.long().squeeze().shape)
+                #print(mask_true.max(), mask_pred.max())
+                accuracy, precision, recall, f1, tp_mask_batch, fp_mask_batch, fn_mask_batch = calculate_objectwise_classification_metrics4(
+                    mask_pred.long().squeeze(),#.numpy(),#mask_pred,#.squeeze(1), 
                     mask_true,
                     threshold = 0.5
                 )
@@ -101,7 +103,7 @@ def evaluate(net, dataloader, device, amp):
                 #total_px_recall += recall
                 #total_px_f1 += f1
 
-                accuracy, precision, recall, f1 = calculate_objectwise_classification_metrics2(
+                accuracy, precision, recall, f1 = calculate_objectwise_classification_metrics3(
                     mask_pred.argmax(dim=1)[0].long().squeeze(),
                     mask_true.squeeze(0),
                     threshold = 0.5
