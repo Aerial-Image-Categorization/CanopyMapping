@@ -40,17 +40,17 @@ pipeline:
 
 if __name__ == '__main__':
     #set logging
-    logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s',
-                    filename='./logs/create-dataset.log',
-                    filemode='w')
-    
-    dataset_folder = '../data/2024-09-29-dataset'
-    size = (200,200)
+    #logging.basicConfig(level=logging.INFO,
+    #                format='%(asctime)s - %(levelname)s - %(message)s',
+    #                filename='./logs/create-dataset.log',
+    #                filemode='w')
+    #
+    dataset_folder = '../data/2024-09-29-seg-dataset-400'
+    size = (400,400)
     tif_path = '../data/raw/2023-02-23_Bakonyszucs_actual.tif'
     shp_path = '../data/raw/Fa_pontok.shp'#'../data/test_data/conc_biomed_full.shp'
     train_size = 0.8
-    valid_size = 0.1
+    valid_size = 0.05
     batch_size = 1
 
     os.makedirs(os.path.join(dataset_folder, 'train','images'), exist_ok=True)
@@ -118,7 +118,7 @@ if __name__ == '__main__':
         shutil.copy(path,os.path.join(dataset_folder, 'test','images'))
     for path in masks_test:
         shutil.copy(path,os.path.join(dataset_folder, 'test','masks'))
-
+        
     #train - validation
     valid_size_orig = valid_size
     valid_size = valid_size / (train_size+valid_size)
@@ -126,9 +126,10 @@ if __name__ == '__main__':
         os.path.join(dataset_folder, 'train'),
         sort = True
     )
-    train_dataset, valid_dataset = random_split(
+
+    valid_dataset, train_dataset = random_split(
         [sample for sample in dataset],
-        [1-valid_size,valid_size],
+        [int(valid_size * len(dataset)),len(dataset) - int(valid_size * len(dataset))],
         generator=torch.Generator().manual_seed(42)
     )
     images_train = [sample['image'] for sample in train_dataset]
@@ -148,7 +149,7 @@ if __name__ == '__main__':
     df = pd.DataFrame({
         'Set': ['Train', 'Validation', 'Test', 'SUM'],
         'Size': [round(train_size, 5), round(valid_size, 5), round(1 - train_size - valid_size, 5),round(train_size,5)+ round(valid_size, 5)+ round(1 - train_size - valid_size, 5)],
-        'Amount': [len(images_train), len(images_valid), len(images_test),len(images_train)+ len(images_valid)+ len(images_test)]
+        #'Amount': [len(images_train), len(images_valid), len(images_test),len(images_train)+ len(images_valid)+ len(images_test)]
     })
     print('Train-Validation-Test Splitage finished')
     logging.info(f'🏁 Train-Validation-Test Splitage finished in {int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}\n{df.to_string(index=False)}')
@@ -161,22 +162,22 @@ if __name__ == '__main__':
     invalid_train_imgs, invalid_val_imgs = check_images_size(dataset_folder)
     for path in invalid_train_imgs:
         os.remove(path)
-    #for path in invalid_val_imgs:
-    #    os.remove(path)
+    for path in invalid_val_imgs:
+        os.remove(path)
 
     #augmentation
     os.makedirs(os.path.join(dataset_folder, 'aug_train','images'), exist_ok=True)
     os.makedirs(os.path.join(dataset_folder, 'aug_train','masks'), exist_ok=True)
 
-    train_set = ImageNameDataset(os.path.join(dataset_folder, 'aug_train'), sort = True)
+    train_set = ImageNameDataset(os.path.join(dataset_folder, 'train'), sort = True)
     
     train_images = [sample['image'] for sample in train_set]
     train_masks = [sample['mask'] for sample in train_set]
 
     for path in train_images:
-        shutil.copy(path,train_images_folder)
+        shutil.copy(path,os.path.join(dataset_folder, 'aug_train','images'))
     for path in train_masks:
-        shutil.copy(path,train_masks_folder)
+        shutil.copy(path,os.path.join(dataset_folder, 'aug_train','masks'))
 
     
     rotate_train_pairs(
