@@ -36,3 +36,15 @@ def middle_split(images, masks, train_size):
                 masks_test.append(mask_name)
                 
     return images, images_test, masks, masks_test
+
+def middle_split_1d(images, masks, train_size):
+    test_images_count = int(len(images) * round(1 - train_size, 5))
+    start_index = (len(images) - test_images_count) // 2
+
+    images_test = images[start_index:start_index + test_images_count]
+    masks_test = masks[start_index:start_index + test_images_count]
+
+    images = images[:start_index] + images[start_index + test_images_count:]
+    masks = masks[:start_index] + masks[start_index + test_images_count:]
+
+    return images, images_test, masks, masks_test
