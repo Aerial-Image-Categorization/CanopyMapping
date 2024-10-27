@@ -89,7 +89,7 @@ def train_net(net,
     logger = get_logger('ds_transunet_l.log')
 
     # (Initialize logging)
-    name='ds_transunet'
+    name='ds_transunet_opt_sch'
     save_checkpoint=True
     img_scale=1
     amp=False
@@ -110,8 +110,12 @@ def train_net(net,
         Images size:  {img_size}
     ''')
 
-    optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, epochs//5, lr/10)
+    #optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=1e-4)
+    #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, epochs//5, lr/10)
+    
+    optimizer = optim.RMSprop(net.parameters(),
+                              lr=lr, weight_decay=1e-4, momentum=0.9, foreach=True)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=5)  # goal: maximize Dice score
     if n_class > 1:
         criterion = nn.CrossEntropyLoss()
     else:
@@ -169,7 +173,7 @@ def train_net(net,
                 division_step = (n_train // (1 * batch_size))
                 if division_step > 0:
                     if global_step % division_step == 0:
-                        scheduler.step()
+                        scheduler.step(val_score['dice_score'])
                         
                         #val_dice = eval_net(net, val_loader, device)
                         val_score = evaluate(net, val_loader, device, False)
