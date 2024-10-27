@@ -21,12 +21,14 @@ from utils.dataloader import get_loader,test_dataset
 #val_img_dir = 'data/Kvasir_SEG/val/images/'x
 #val_mask_dir = 'data/Kvasir_SEG/val/masks/'x
 #dir_checkpoint = 'checkpoints/'x
-train_img_dir = '../CanopyMapping/data/2024-09-29-seg-dataset-200/aug_train/images/'
-train_mask_dir = '../CanopyMapping/data/2024-09-29-seg-dataset-200/aug_train/masks/'
-val_img_dir = '../CanopyMapping/data/2024-09-29-seg-dataset-200/val/images/'
-val_mask_dir = '../CanopyMapping/data/2024-09-29-seg-dataset-200/val/masks/'
+train_img_dir = '../data/2024-09-29-seg-dataset-200/aug_train/images/'
+train_mask_dir = '../data/2024-09-29-seg-dataset-200/aug_train/masks/'
+val_img_dir = '../data/2024-09-29-seg-dataset-200/val/images/'
+val_mask_dir = '../data/2024-09-29-seg-dataset-200/val/masks/'
 dir_checkpoint = 'checkpoints/'
 
+import wandb
+from utils.eval import evaluate
 
 def get_logger(filename, verbosity=1, name=None):
     level_dict = {0: logging.DEBUG, 1: logging.INFO, 2: logging.WARNING}
@@ -84,8 +86,18 @@ def train_net(net,
 
     n_train = cal(train_loader)
     n_val = cal(val_loader)
-    logger = get_logger('kvasir.log')
+    logger = get_logger('ds_transunet_l.log')
 
+    # (Initialize logging)
+    name='ds_transunet'
+    save_checkpoint=True
+    img_scale=1
+    amp=False
+    experiment = wandb.init(project='TreeDetection', resume='allow', anonymous='must',name=name, magic=True)
+    experiment.config.update(
+        dict(epochs=epochs, batch_size=batch_size, learning_rate=lr,
+             val_percent=n_val, save_checkpoint=save_checkpoint, img_scale=img_scale, amp=amp)
+    )
 
     logger.info(f'''Starting training:
         Epochs:          {epochs}
@@ -107,7 +119,9 @@ def train_net(net,
 
 
     best_dice = 0
-    size_rates = [384, 512, 640]
+    #size_rates = [384, 512, 640]
+    size_rates = [384]
+    global_step = 0
     for epoch in range(epochs):
         net.train()
 
@@ -134,7 +148,14 @@ def train_net(net,
                     loss3 = structure_loss(l3, true_masks)
                     loss = 0.6*loss1 + 0.2*loss2 + 0.2*loss3
                     epoch_loss += loss.item()
-
+                    
+                    
+                    experiment.log({
+                        'train loss': loss.item(),
+                        'step': global_step,
+                        'epoch': epoch
+                    })
+                    
                     pbar.set_postfix(**{'loss (batch)': loss.item()})
 
                     optimizer.zero_grad()
@@ -143,15 +164,53 @@ def train_net(net,
                     optimizer.step()
 
                     pbar.update(imgs.shape[0])
+                    global_step += 1
 
-        scheduler.step()
-        val_dice = eval_net(net, val_loader, device)
-        if val_dice > best_dice:
-           best_dice = val_dice
-           b_cp = True
-        epoch_loss = epoch_loss / Batch
-        logger.info('epoch: {} train_loss: {:.3f} epoch_dice: {:.3f}, best_dice: {:.3f}'.format(epoch + 1, epoch_loss, val_dice* 100, best_dice * 100))
+                division_step = (n_train // (1 * batch_size))
+                if division_step > 0:
+                    if global_step % division_step == 0:
+                        scheduler.step()
+                        
+                        #val_dice = eval_net(net, val_loader, device)
+                        val_score = evaluate(net, val_loader, device, False)
+                        val_dice = val_score['dice_score']
+                        if val_dice > best_dice:
+                           best_dice = val_dice
+                           b_cp = True
+                        epoch_loss = epoch_loss / Batch
+                        logger.info('epoch: {} train_loss: {:.3f} epoch_dice: {:.3f}, best_dice: {:.3f}'.format(epoch + 1, epoch_loss, val_dice, best_dice))
 
+                        try:
+                            experiment.log({
+                                'learning rate': optimizer.param_groups[0]['lr'],
+                                'Segmentation metrics': {
+                                    'Dice': val_dice, #val_score['dice_score'],
+                                    'IoU':val_score['iou']
+                                },
+                                #'validation Dice': val_score['dice_score'],
+                                #'validation IoU': val_score['iou'],
+                                'Classification metrics': {
+                                    'Accuracy': val_score['ob_accuracy'],
+                                    'Precision': val_score['ob_precision'],
+                                    'Recall': val_score['ob_recall'],
+                                    'F1-score': val_score['ob_f1']
+                                },
+                                'images': wandb.Image(imgs[0].cpu()),
+                                'masks': {
+                                    'true': wandb.Image(true_masks[0].float().cpu()),
+                                    #'pred': wandb.Image(masks_pred.argmax(dim=1)[0].float().cpu()),
+                                    #'pred': wandb.Image(masks_pred[0].float().cpu()),
+                                    'pred': wandb.Image((torch.sigmoid(masks_pred[0]) > 0.5).float().cpu()),
+
+                                },
+                                'step': global_step,
+                                'epoch': epoch,
+                                #**histograms
+                            })
+                        except Exception as e:
+                            print(f'error {e}')
+                            pass
+        
         if save_cp and b_cp:
             try:
                 os.mkdir(dir_checkpoint)
