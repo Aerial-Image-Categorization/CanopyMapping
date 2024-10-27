@@ -410,6 +410,7 @@ def convert_TIFtoPNG(folder, out_folder,tile_size=(250,250),grayscale=False):
     start_time = time.time()
     files = os.listdir(folder)
     total_count= len(files)
+    os.makedirs(out_folder, exist_ok=True)
     with tqdm(total=total_count, desc='converting TIFs to PNGs') as pbar:
         for file in files:
             tif_path = os.path.join(folder,file)
@@ -567,3 +568,278 @@ def show_image(path, divisor=10):
     ax.axis('off')
 
     plt.show()
+    
+    
+def split_SEG(tif_path, points_shp_path, poly_shp_path, output_folder, tile_size=(200, 200)):
+    """
+    Split .shp & .tif files using points from a point shapefile to center each split tile (200x200).
+    The function cuts both TIF and polygon shapefile over the same areas centered around the points.
+    """
+    tifs_path_folder = os.path.join(output_folder, 'tifs')
+    os.makedirs(tifs_path_folder, exist_ok=True)
+    points_gdf = gpd.read_file(points_shp_path)
+    tif_dataset = gdal.Open(tif_path)
+    tif_transform = tif_dataset.GetGeoTransform()
+    pixel_width = tif_transform[1]
+    pixel_height = abs(tif_transform[5])
+
+    out_dict = {}
+    
+    if poly_shp_path:
+        shps_path_folder = os.path.join(output_folder, 'shps')
+        os.makedirs(shps_path_folder, exist_ok=True)
+        logging.info(f'⚙️ TIF and SHP splitting started.')
+    else:
+        logging.info(f'⚙️ TIF splitting started.')
+        
+    for idx, point in tqdm(points_gdf.iterrows(), total=points_gdf.shape[0], desc="Processing trees"):
+        if isinstance(point.geometry, Point):
+            process_seg_tile(idx, None, point.geometry.x, point.geometry.y, tif_dataset, tif_transform, poly_shp_path, tifs_path_folder, shps_path_folder, tile_size, pixel_width, pixel_height)
+            out_dict[idx] = point.geometry.x, point.geometry.y
+        elif isinstance(point.geometry, MultiPoint):
+            for sub_idx, sub_point in enumerate(point.geometry.geoms):
+                out_dict[idx] = sub_point.x, sub_point.y
+                process_seg_tile(idx, sub_idx, sub_point.x, sub_point.y, tif_dataset, tif_transform, poly_shp_path, tifs_path_folder, shps_path_folder, tile_size, pixel_width, pixel_height)
+        else:
+            logging.warning(f'Unsupported geometry type {type(point.geometry)} at index {idx}')
+            continue
+
+    if poly_shp_path:
+        logging.info(f'✅ TIF and SHP splitting ended.')
+    else:
+        logging.info(f'✅ TIF splitting ended.')
+
+    return out_dict
+
+def process_seg_tile(idx, sub_idx, center_x, center_y, tif_dataset, tif_transform, poly_shp_path, tifs_path_folder, shps_path_folder, tile_size, pixel_width, pixel_height):
+    """
+    Helper function to process a single tile around a point, using only the closest polygon to the center.
+    """
+
+    half_width = (tile_size[0] // 2) * pixel_width
+    half_height = (tile_size[1] // 2) * pixel_height
+
+    minx, miny = center_x - half_width, center_y - half_height
+    maxx, maxy = center_x + half_width, center_y + half_height
+
+    tile_bbox = box(minx, miny, maxx, maxy)
+
+    offset_x = int((minx - tif_transform[0]) / pixel_width)
+    offset_y = int((tif_transform[3] - maxy) / pixel_height)
+
+    if poly_shp_path:
+        #load polygons within the bounding box
+        tile_gdf = gpd.read_file(poly_shp_path, mask=tile_bbox)
+
+        if not tile_gdf.empty:
+            #find the closest polygon to the center point
+            center_point = Point(center_x, center_y)
+            tile_gdf['distance'] = tile_gdf.geometry.distance(center_point)
+            closest_polygon = tile_gdf.loc[tile_gdf['distance'].idxmin()]  # Select polygon with minimum distance
+
+            #new GeoDataFrame
+            closest_polygon_gdf = gpd.GeoDataFrame([closest_polygon], crs=tile_gdf.crs)
+
+            if sub_idx is not None and sub_idx != 0:
+                tile_shp_path = os.path.join(shps_path_folder, f"tile_{idx}_{sub_idx}.shp")
+            else:
+                tile_shp_path = os.path.join(shps_path_folder, f"tile_{idx}.shp")
+            closest_polygon_gdf.to_file(tile_shp_path)
+            logging.info(f'Saved tile shapefile for point {idx} (sub-point {sub_idx}) at {tile_shp_path}')
+
+            if sub_idx is not None and sub_idx != 0:
+                tif_output_path = os.path.join(tifs_path_folder, f"tile_{idx}_{sub_idx}.tif")
+            else:
+                tif_output_path = os.path.join(tifs_path_folder, f"tile_{idx}.tif")
+            
+            gdal.Translate(
+                tif_output_path,
+                tif_dataset,
+                srcWin=[offset_x, offset_y, tile_size[0], tile_size[1]]
+            )
+            logging.info(f'Saved tile TIF for point {idx} (sub-point {sub_idx})')
+    else:
+        #process only the TIF
+        if sub_idx is not None and sub_idx != 0:
+            tif_output_path = os.path.join(tifs_path_folder, f"tile_{idx}_{sub_idx}.tif")
+        else:
+            tif_output_path = os.path.join(tifs_path_folder, f"tile_{idx}.tif")
+        
+        gdal.Translate(
+            tif_output_path,
+            tif_dataset,
+            srcWin=[offset_x, offset_y, tile_size[0], tile_size[1]]
+        )
+        logging.info(f'Saved tile TIF for point {idx} (sub-point {sub_idx})')
+
+
+def convert_SHPtoPNG_SEG(tif_path, shp_path, png_path, tile_size=(250, 250), bg_color='black', fg_color='white'):
+    '''
+    Converts a polygon shapefile to a PNG image based on the extent of a reference TIFF file.
+    
+    Parameters:
+    - tif_path: Path to the reference TIFF file (for CRS and bounds).
+    - shp_path: Path to the shapefile containing polygons.
+    - png_path: Output path for the resulting PNG image.
+    - tile_size: Size of the PNG image (width, height) in pixels.
+    - bg_color: Background color of the image.
+    - fg_color: Foreground color for polygons.
+
+    Returns:
+    - List of polygon vertices as a list of tuples.
+    '''
+    
+    gdf = gpd.read_file(shp_path)
+    target_epsg = 23700
+    
+    with rasterio.open(tif_path) as src:
+        src_crs = src.crs
+        bbox_transformed = transform_bounds(src_crs, f'EPSG:{target_epsg}', *src.bounds)
+
+    xmin, ymin, xmax, ymax = bbox_transformed
+    img_width, img_height = tile_size
+
+    #blank image with background color
+    img = Image.new('RGB', (img_width, img_height), color=bg_color)
+    draw = ImageDraw.Draw(img)
+
+    polygons_points = []
+
+    #iterate through polygons
+    for geom in gdf.geometry:
+        if geom.geom_type == 'Polygon':
+            # Extract the exterior coordinates of the polygon
+            polygon_coords = [(int((x - xmin) / (xmax - xmin) * img_width),
+                               int((ymax - y) / (ymax - ymin) * img_height))  # Invert y
+                              for x, y in geom.exterior.coords]
+            draw.polygon(polygon_coords, fill=fg_color, outline=fg_color)
+            polygons_points.append(polygon_coords)
+            
+        elif geom.geom_type == 'MultiPolygon':
+            for poly in geom.geoms:
+                polygon_coords = [(int((x - xmin) / (xmax - xmin) * img_width),
+                                   int((ymax - y) / (ymax - ymin) * img_height))  # Invert y
+                                  for x, y in poly.exterior.coords]
+                draw.polygon(polygon_coords, fill=fg_color, outline=fg_color)
+                polygons_points.append(polygon_coords)
+
+    img.save(png_path)
+    img.close()
+
+    return polygons_points
+
+
+def createPNG_Dataset_SEG(folder, out_folder, tile_size=(250,250),point_size=1,bg_color='black',fg_color='white', grayscale=False):
+    """
+    creates a dataset from a folder of splitted .tif & .shp files into another folder 
+    w/ convert_SHPtoPNG(), gdal
+    pattern: out_folder/{images / masks}/tile_{index}.{ext.}
+    """
+    logging.info(f'⚙️ Creating DATASET:\n\t- from: {folder}\n\t- to: {out_folder}\n\t- tile_size: {tile_size}\n\t- point size: {point_size}\n\t- foreground color: {fg_color}\n\t- background color: {bg_color}')
+    start_time = time.time()
+    
+    tifs_folder = os.path.join(folder, 'tifs')
+    shps_folder = os.path.join(folder, 'shps')
+
+    out_tifs_folder = os.path.join(out_folder, 'images')
+    out_shps_folder = os.path.join(out_folder, 'masks')
+    
+    if not os.path.exists(out_tifs_folder):
+        os.makedirs(out_tifs_folder)
+    if not os.path.exists(out_shps_folder):
+        os.makedirs(out_shps_folder)
+
+    files = [f for f in os.listdir(tifs_folder) if f.endswith('.tif')]
+    
+    total_count = len(files)
+
+    with tqdm(total=total_count, desc='Processing tif files') as pbar:
+        for file in files:
+            tif_path = os.path.join(tifs_folder, file)
+            out_path = os.path.join(out_tifs_folder, os.path.splitext(file)[0] + '.png')
+            tif_file = gdal.Open(tif_path)
+            scaled = scale_pixel_values(tif_file)
+            if scaled.shape != tile_size:
+                scaled = extend_image_shape(scaled, tile_size)
+            if grayscale:
+                cv2.imwrite(out_path, scaled)
+            else:
+                save_color_image(out_path, scaled, tif_file)
+            pbar.update(1)
+            
+    files = [f for f in os.listdir(shps_folder) if f.endswith('.shp')]
+    total_count = len(files)
+    try:
+        with tqdm(total=total_count, desc='Processing shp files') as pbar:
+            for file in files:
+                tif_path = os.path.join(tifs_folder, file.replace('.shp', '.tif'))
+                out_path = os.path.join(out_shps_folder, os.path.splitext(file)[0] + '.png')
+                try:
+                    convert_SHPtoPNG(tif_path, os.path.join(shps_folder, file), out_path, tile_size, bg_color, fg_color)
+                except Exception as e:
+                    logging.warning(f"Conversion error at \n\t{tif_path}\n\t{out_path}\nerror message: {e}")
+                pbar.update(1)
+    except rasterio._err.CPLE_NotSupportedError as e:
+        logging.error(f'🚨 ERROR: bad EPSG\n\tmessage: {e}')
+    else:
+        elapsed_time = time.time() - start_time
+        hours, remainder = divmod(elapsed_time, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        
+        logging.info(f'✅ DATASET created in: {int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}')
+        return elapsed_time
+    return False
+
+def create_SHP_SEG(folder, out_folder, result_path, target_crs=23700):
+    """
+    Converts mask PNG files into a shapefile with polygons.
+    
+    Parameters:
+    - folder: Directory containing the original TIFF files.
+    - out_folder: Directory containing mask PNG files.
+    - result_path: Path to save the output shapefile.
+    - target_crs: Target coordinate reference system (CRS) for the output shapefile.
+    
+    Returns:
+    - count: Number of polygons created.
+    - elapsed_time: Time taken for the conversion process.
+    """
+    start_time = time.time()
+    filenames = os.listdir(out_folder)
+    total_count = len(filenames)
+    count = 0
+    
+    polygons = [] 
+    with tqdm(total=total_count, desc='Converting MASKs to SHP') as pbar:
+        for filename in filenames:
+            if not filename.startswith('.'):
+                tif_path = os.path.join(folder, filename.replace('.png', '.tif'))
+                png_path = os.path.join(out_folder, filename)
+                
+                mask_img = Image.open(png_path).convert("1")
+                mask_array = np.array(mask_img)
+                
+                with rasterio.open(tif_path) as src:
+                    transform = src.transform
+                    crs = src.crs
+                
+                contours = measure.find_contours(mask_array, level=0.5)
+                
+                for contour in contours:
+                    geo_coords = [transform * (x, y) for y, x in contour]
+                
+                    polygon_geom = Polygon(geo_coords)
+                    polygons.append(polygon_geom)
+                    count += 1
+                
+                pbar.update(1)
+    
+    #geodataframe
+    gdf = gpd.GeoDataFrame(geometry=polygons, crs=crs)
+    if gdf.crs != target_crs:
+        gdf = gdf.to_crs(target_crs)
+
+    gdf.to_file(result_path)
+    
+    elapsed_time = time.time() - start_time
+    return count, elapsed_time
