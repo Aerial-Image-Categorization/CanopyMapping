@@ -790,6 +790,9 @@ def createPNG_Dataset_SEG(folder, out_folder, tile_size=(250,250),point_size=1,b
         return elapsed_time
     return False
 
+from shapely.geometry import Polygon
+from skimage import measure
+
 def create_SHP_SEG(folder, out_folder, result_path, target_crs=23700):
     """
     Converts mask PNG files into a shapefile with polygons.
