@@ -134,8 +134,8 @@ def create_new_dataset_structure(
         for dest_subfolder in dest_subfolders:
             os.makedirs(os.path.join(new_base_dir, dest_folder, dest_subfolder), exist_ok=True)
             
-    for src_folder in source_folders:
-        for src_subfolder in source_subfolders:
+    for src_folder in tqdm(source_folders, desc="Copy folders", leave=False):
+        for src_subfolder in tqdm(source_subfolders, desc="Copy subsets", leave=False):
             source_dir = os.path.join(base_dir, src_folder, src_subfolder)
 
             if os.path.exists(source_dir):
@@ -154,8 +154,8 @@ if __name__ == '__main__':
     datasets = [
         '../data/2024-10-30-loc-dataset-256',
         '../data/2024-10-30-loc-dataset-384',
-        '../data/2024-10-30-loc-dataset-512',
-        '../data/2024-10-30-loc-dataset-1024'
+        '../data/2024-10-30-loc-dataset-512'
+        #'../data/2024-10-30-loc-dataset-1024'
     ]
     
     subfolders = [
@@ -165,30 +165,30 @@ if __name__ == '__main__':
         'test'
     ]
     
-    for subfolder in tqdm(subfolders, desc="Sets", leave=False):
-        convert_image_mask_pairs_to_yolo(
-            image_dir=os.path.join(datasets[-1], subfolder, 'images'),
-            mask_dir=os.path.join(datasets[-1], subfolder, 'masks'),
-            output_label_dir=os.path.join(datasets[-1], subfolder, 'mask_txts'),
-            class_id=0
-        )
-        
-    create_new_dataset_structure(
-        base_dir = datasets[-1],
-        new_base_dir = datasets[-1]+'_yolo'
-    )
-    
-    
-    #for dataset in datasets:
-    #    for subfolder in subfolders:
-    #        convert_image_mask_pairs_to_yolo(
-    #            image_dir=os.path.join(dataset, subfolder, 'images'),
-    #            mask_dir=os.path.join(dataset, subfolder, 'masks'),
-    #            output_label_dir=os.path.join(dataset, subfolder, 'mask_txts'),
-    #            class_id=0
-    #        )
-    #        
-    #    create_new_dataset_structure(
-    #        base_dir = 'path/to/your/existing/dataset'
-    #        new_base_dir = 'path/to/your/new/dataset' 
+    #for subfolder in tqdm(subfolders, desc="Sets", leave=False):
+    #    convert_image_mask_pairs_to_yolo(
+    #        image_dir=os.path.join(datasets[-1], subfolder, 'images'),
+    #        mask_dir=os.path.join(datasets[-1], subfolder, 'masks'),
+    #        output_label_dir=os.path.join(datasets[-1], subfolder, 'mask_txts'),
+    #        class_id=0
     #    )
+    #    
+    #create_new_dataset_structure(
+    #    base_dir = datasets[-1],
+    #    new_base_dir = datasets[-1]+'_yolo'
+    #)
+    
+    
+    for dataset in tqdm(datasets, desc="Datasets"):
+        for subfolder in tqdm(subfolders, desc="Subsets", leave=False):
+            convert_image_mask_pairs_to_yolo(
+                image_dir=os.path.join(dataset, subfolder, 'images'),
+                mask_dir=os.path.join(dataset, subfolder, 'masks'),
+                output_label_dir=os.path.join(dataset, subfolder, 'mask_txts'),
+                class_id=0
+            )
+            
+        create_new_dataset_structure(
+           base_dir = dataset,
+           new_base_dir = dataset+'_yolo'
+        )
