@@ -12,6 +12,7 @@ from pyproj import Transformer
 from shapely.geometry import Point, box
 import geopandas as gpd
 import matplotlib.pyplot as plt
+from shapely.geometry import box, Point, MultiPoint
 
 from tqdm.auto import tqdm
 import time
@@ -775,7 +776,7 @@ def createPNG_Dataset_SEG(folder, out_folder, tile_size=(250,250),point_size=1,b
                 tif_path = os.path.join(tifs_folder, file.replace('.shp', '.tif'))
                 out_path = os.path.join(out_shps_folder, os.path.splitext(file)[0] + '.png')
                 try:
-                    convert_SHPtoPNG(tif_path, os.path.join(shps_folder, file), out_path, tile_size, bg_color, fg_color)
+                    convert_SHPtoPNG_SEG(tif_path, os.path.join(shps_folder, file), out_path, tile_size, bg_color, fg_color)
                 except Exception as e:
                     logging.warning(f"Conversion error at \n\t{tif_path}\n\t{out_path}\nerror message: {e}")
                 pbar.update(1)
