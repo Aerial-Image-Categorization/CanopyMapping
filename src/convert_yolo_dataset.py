@@ -4,6 +4,54 @@ import numpy as np
 from pathlib import Path
 from tqdm import tqdm
 import shutil
+import cv2
+
+def create_yolo_segmentation_label(mask_path, img_width, img_height, class_id=0):
+    """
+    Convert a mask to Ultralytics YOLO format for segmentation.
+    
+    Parameters:
+    - mask_path (str): Path to the mask image.
+    - img_width (int): Width of the original image.
+    - img_height (int): Height of the original image.
+    - class_id (int): Class ID for the object (default is 0).
+    
+    Returns:
+    - yolo_labels (list): List of YOLO-formatted label strings for segmentation.
+    """
+    # Read the mask in grayscale
+    mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+    if mask is None:
+        raise FileNotFoundError(f"Mask image not found at path: {mask_path}")
+    
+    # Find contours in the mask
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    yolo_labels = []
+    
+    # Process each contour
+    for contour in contours:
+        # Simplify the contour to reduce the number of points if needed
+        epsilon = 0.01 * cv2.arcLength(contour, True)
+        contour = cv2.approxPolyDP(contour, epsilon, True)
+        
+        # Skip contours with fewer than 3 points (not valid polygons)
+        if len(contour) < 3:
+            continue
+        
+        # Normalize each point in the contour and format as <class-index> <x1> <y1> <x2> <y2> ...
+        segmentation_points = [class_id]  # Start the row with the class ID
+        for point in contour:
+            px, py = point[0]
+            normalized_x = px / img_width
+            normalized_y = py / img_height
+            segmentation_points.extend([normalized_x, normalized_y])
+        
+        # Convert list to string format required by YOLO
+        label_str = " ".join(map(str, segmentation_points))
+        yolo_labels.append(label_str)
+    
+    return yolo_labels
+
 
 def create_yolo_label(mask_path, img_width, img_height, class_id=0):
     """
@@ -62,7 +110,9 @@ def convert_image_mask_pairs_to_yolo(image_dir, mask_dir, output_label_dir, clas
         image = cv2.imread(img_path)
         img_height, img_width = image.shape[:2]
         
-        yolo_labels = create_yolo_label(mask_path, img_width, img_height, class_id)
+        #yolo_labels = create_yolo_label(mask_path, img_width, img_height, class_id)
+        yolo_labels = create_yolo_segmentation_label(mask_path, img_width, img_height, class_id)
+        
         
         label_path = os.path.join(output_label_dir, img_filename.replace('tif', 'shp').replace('.png','.txt'))
         
@@ -145,16 +195,22 @@ def create_new_dataset_structure(
                     if os.path.isfile(file_path):
                         dest_index = source_folders.index(src_folder)
                         destination_dir = os.path.join(new_base_dir, dest_folders[source_subfolders.index(src_subfolder)], dest_subfolders[dest_index])
-                        shutil.copy(file_path, os.path.join(destination_dir, filename))
+                        
+                        if 'shp' in filename:
+                            shutil.copy(file_path, os.path.join(destination_dir, filename.replace('_shp_', '_')))
+                        if 'tif' in filename:
+                            shutil.copy(file_path, os.path.join(destination_dir, filename.replace('_tif_', '_')))
             else:
                 print(f"Warning: {source_dir} does not exist and will be skipped.")
 
 
 if __name__ == '__main__':
     datasets = [
-        '../data/2024-10-30-loc-dataset-256',
-        '../data/2024-10-30-loc-dataset-384',
-        '../data/2024-10-30-loc-dataset-512'
+        #'../data/2024-10-30-loc-dataset-192',
+        #'../data/2024-10-30-loc-dataset-128',
+        #'../data/2024-10-30-loc-dataset-256',
+        #'../data/2024-10-30-loc-dataset-384',
+        '../data/2024-10-30-loc-dataset-512',
         #'../data/2024-10-30-loc-dataset-1024'
     ]
     
@@ -190,5 +246,5 @@ if __name__ == '__main__':
             
         create_new_dataset_structure(
            base_dir = dataset,
-           new_base_dir = dataset+'_yolo'
+           new_base_dir = dataset+'_yolo_seg'
         )
