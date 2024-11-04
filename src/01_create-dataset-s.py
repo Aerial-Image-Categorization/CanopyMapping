@@ -1,38 +1,4 @@
-import sys
-#sys.path.append('../')
-
-import os
-os.environ['GTIFF_SRS_SOURCE'] = 'EPSG'
-
-import logging
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s',
-                    filename='../logs/create-dataset-s.log',#'../logs/image_processing.log',
-                    filemode='a')
 import argparse
-
-from utils.imageprocessing import split, createPNG_Dataset, remove_empty_images
-from utils.datasetvalidation import set_valid_CRS, dropna_PNGs
-
-from utils.dataloading import ImageNameDataset
-from utils.traintestsplit import middle_split_1d
-import torch
-from torch.utils.data import DataLoader, random_split
-
-import shutil
-import time
-import pandas as pd
-
-from utils.datasetvalidation import check_images_size
-from utils.augmentation import rotate_train_pairs
-
-
-####
-
-from utils.imageprocessing import split_SEG, createPNG_Dataset_SEG
-
-
-
 '''
 pipeline:
     - special split
@@ -46,20 +12,58 @@ pipeline:
 '''
 
 if __name__ == '__main__':
-    #set logging
-    logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s',
-                    filename='./logs/create-segmentation-dataset.log',
-                    filemode='w')
+    parser = argparse.ArgumentParser(description='Train the model on images and target masks',
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('-s', '--img_size', dest='size', type=int, default=512,
+                        help='The size of the images')
     
-    dataset_folder = '../data/2024-10-27-seg-dataset-1024'
-    size=(1024, 1024)
+    args = parser.parse_args()
+    tile_size = args.size
+    
+    dataset_folder = f'../data/2024-11-03-seg-dataset-{tile_size}-dropna'
+    size=(tile_size, tile_size)
     tif_path = '../data/raw/2023-02-23_Bakonyszucs_actual.tif'
     points_shp_path = '../data/raw/Fa_pontok.shp'
     poly_shp_path = '../data/raw/Lombkorona.shp'
     train_size = 0.8
     valid_size = 0.05
     batch_size = 1
+    
+    import sys
+    #sys.path.append('../')
+
+    import os
+    os.environ['GTIFF_SRS_SOURCE'] = 'EPSG'
+
+    import logging
+    #set logging
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s - %(levelname)s - %(message)s',
+                        filename=f'../logs/create-dataset-s-{tile_size}.log',#'../logs/image_processing.log',
+                        filemode='a')
+    import argparse
+
+    from utils.imageprocessing import split, createPNG_Dataset, remove_empty_images
+    from utils.datasetvalidation import set_valid_CRS, dropna_PNGs
+
+    from utils.dataloading import ImageNameDataset
+    from utils.traintestsplit import middle_split_1d
+    import torch
+    from torch.utils.data import DataLoader, random_split
+
+    import shutil
+    import time
+    import pandas as pd
+
+    from utils.datasetvalidation import check_images_size
+    from utils.augmentation import rotate_train_pairs
+
+
+    ####
+
+    from utils.imageprocessing import split_SEG, createPNG_Dataset_SEG
+
+
 
     os.makedirs(os.path.join(dataset_folder, 'train','images'), exist_ok=True)
     os.makedirs(os.path.join(dataset_folder, 'train','masks'), exist_ok=True)
