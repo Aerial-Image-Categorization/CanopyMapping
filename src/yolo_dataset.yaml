@@ -1,0 +1,7 @@
+names:
+- tree
+nc: 1
+path: ../../data/2024-10-30-loc-dataset-192_yolo2
+test: images/test
+train: images/train
+val: images/val
