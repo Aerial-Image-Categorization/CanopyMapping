@@ -25,7 +25,8 @@ def rotate_train_pairs(train_images_folder,train_masks_folder):
             t_rot_180(image).save(os.path.join(train_images_folder,filename_splitext[0]+'_180.'+filename_splitext[1]))
             t_rot_270(image).save(os.path.join(train_images_folder,filename_splitext[0]+'_270.'+filename_splitext[1]))
 
-            mask_filename = image_filename.replace('tif','shp')
+            if image_filename.split('_') != 2:
+                mask_filename = image_filename.replace('tif','shp')
 
             mask = Image.open(os.path.join(train_masks_folder, mask_filename))
             filename_splitext = mask_filename.split('.')
