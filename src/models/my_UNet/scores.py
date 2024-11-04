@@ -2,19 +2,47 @@ import torch
 from torch import Tensor
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
+import torch
+from torch import Tensor
+
 def dice_coeff(input: Tensor, target: Tensor, reduce_batch_first: bool = False, epsilon: float = 1e-6):
-    # Average of Dice coefficient for all batches, or for a single mask
     assert input.size() == target.size()
     assert input.dim() == 3 or not reduce_batch_first
 
     sum_dim = (-1, -2) if input.dim() == 2 or not reduce_batch_first else (-1, -2, -3)
+    
+    foreground_mask = target > 0  #exclude background
+    has_foreground = foreground_mask.sum(dim=sum_dim) > 0 #check if there is a mask with foreground
+    input = input * foreground_mask
+    target = target * foreground_mask
 
     inter = 2 * (input * target).sum(dim=sum_dim)
     sets_sum = input.sum(dim=sum_dim) + target.sum(dim=sum_dim)
-    sets_sum = torch.where(sets_sum == 0, inter, sets_sum)
+    
+    
+    sets_sum = torch.where(sets_sum == 0, inter, sets_sum) #avoid division by zero
 
     dice = (inter + epsilon) / (sets_sum + epsilon)
-    return dice.mean()
+
+    if has_foreground.any():
+        return dice[has_foreground].mean()
+    else:
+        return dice.mean()*0
+
+
+#def dice_coeff(input: Tensor, target: Tensor, reduce_batch_first: bool = False, epsilon: float = 1e-6):
+#    # Average of Dice coefficient for all batches, or for a single mask
+#    assert input.size() == target.size()
+#    assert input.dim() == 3 or not reduce_batch_first
+#
+#    sum_dim = (-1, -2) if input.dim() == 2 or not reduce_batch_first else (-1, -2, -3)
+#
+#    inter = 2 * (input * target).sum(dim=sum_dim)
+#    sets_sum = input.sum(dim=sum_dim) + target.sum(dim=sum_dim)
+#    sets_sum = torch.where(sets_sum == 0, inter, sets_sum)
+#
+#    dice = (inter + epsilon) / (sets_sum + epsilon)
+#    return dice.mean()
 
 def jaccard_coeff(input: Tensor, target: Tensor, reduce_batch_first: bool = False, epsilon: float = 1e-6):
     # Average of IoU loss for all batches, or for a single mask
@@ -22,14 +50,24 @@ def jaccard_coeff(input: Tensor, target: Tensor, reduce_batch_first: bool = Fals
     assert input.dim() == 3 or not reduce_batch_first
 
     sum_dim = (-1, -2) if input.dim() == 2 or not reduce_batch_first else (-1, -2, -3)
-
+    
+    foreground_mask = target > 0  #exclude background
+    has_foreground = foreground_mask.sum(dim=sum_dim) > 0 #check if there is a mask with foreground
+    input = input * foreground_mask
+    target = target * foreground_mask
+    
     inter = 2 * (input * target).sum(dim=sum_dim)
     sets_sum = input.sum(dim=sum_dim) + target.sum(dim=sum_dim)
     sets_sum = torch.where(sets_sum == 0, inter, sets_sum)
 
     iou = (inter + epsilon) / (sets_sum + epsilon)
     iou_loss = iou
-    return iou_loss.mean()
+    
+    #return iou_loss.mean()
+    if has_foreground.any():
+        return iou_loss[has_foreground].mean()
+    else:
+        return iou_loss.mean()*0
     
 def iou(input, target, epsilon=1e-6):
     assert input.size() == target.size(), "Input and target must be the same size."
@@ -37,7 +75,8 @@ def iou(input, target, epsilon=1e-6):
 
     intersection = (input * target).sum(dim=(-1, -2))  # Shape: [batch_size]
     union = input.sum(dim=(-1, -2)) + target.sum(dim=(-1, -2)) - intersection  # Shape: [batch_size]
-
+    
+    
     union = torch.where(union == 0, torch.tensor(1.0, device=union.device), union)
 
     iou = intersection / union

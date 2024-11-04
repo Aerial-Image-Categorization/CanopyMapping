@@ -52,14 +52,14 @@ def train_model(
                  f'\t{"Bilinear" if model.bilinear else "Transposed conv"} upscaling')
 
     # 2. Split into train / validation partitions
-    #n_val = int(len(dataset) * val_percent)
-    #n_train = len(dataset) - n_val
+    n_val = len(valid_set)#int(len(dataset) * val_percent)
+    n_train = len(train_set)#len(dataset) - n_val
     #train_set, val_set = random_split(dataset, [n_train, n_val], generator=torch.Generator().manual_seed(0))
 
     # 3. Create data loaders
     loader_args = dict(batch_size=batch_size, num_workers=os.cpu_count(), pin_memory=True)
     train_loader = DataLoader(train_set, shuffle=True, **loader_args)
-    val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
+    val_loader = DataLoader(valid_set, shuffle=False, drop_last=True, **loader_args)
 
     # (Initialize logging)
     experiment = wandb.init(project='TreeDetection', resume='allow', anonymous='must',name=name, magic=True)
