@@ -2,21 +2,28 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
 class model(nn.Module):
-    def __init__(self, n_channels, n_classes):
+    def __init__(self, n_channels, n_classes, dropout_prob=0.2):
         super(model, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
         self.bilinear = True
+        self.dropout_prob = dropout_prob
         # Encoder
         self.conv1 = DoubleConv(n_channels, 32)
+        self.dropout1 = nn.Dropout(self.dropout_prob)
         self.pool1 = nn.MaxPool2d(2)
+        
         self.conv2 = DoubleConv(32, 64)
+        self.dropout2 = nn.Dropout(self.dropout_prob)
         self.pool2 = nn.MaxPool2d(2)
+        
         self.conv3 = DoubleConv(64, 128)
+        self.dropout3 = nn.Dropout(self.dropout_prob)
         self.pool3 = nn.MaxPool2d(2)
+        
         self.conv4 = DoubleConv(128, 256)
+        self.dropout4 = nn.Dropout(self.dropout_prob)
         self.pool4 = nn.MaxPool2d(2)
 
         # Middle Part
@@ -32,12 +39,19 @@ class model(nn.Module):
     def forward(self, x):
         # Encoder
         x1 = self.conv1(x)
+        x1 = self.dropout1(x1)
         x2 = self.pool1(x1)
+        
         x2 = self.conv2(x2)
+        x2 = self.dropout2(x2)
         x3 = self.pool2(x2)
+        
         x3 = self.conv3(x3)
+        x3 = self.dropout3(x3)
         x4 = self.pool3(x3)
+        
         x4 = self.conv4(x4)
+        x4 = self.dropout4(x4)
         x5 = self.pool4(x4)
 
         # Middle Part
@@ -76,7 +90,7 @@ class Up(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(Up, self).__init__()
         self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-        self.conv = DoubleConv(in_channels + out_channels, out_channels)  # Adjusted number of input channels
+        self.conv = DoubleConv(in_channels + out_channels, out_channels)
 
     def forward(self, x1, x2):
         x1 = self.up(x1)
@@ -90,8 +104,6 @@ class Up(nn.Module):
         x1_adjusted = F.interpolate(x1, size=(x2.size(2), x2.size(3)), mode='bilinear', align_corners=True)
         x = torch.cat([x2, x1_adjusted], dim=1)
         return self.conv(x)
-
-
 
 
 class OutConv(nn.Module):
