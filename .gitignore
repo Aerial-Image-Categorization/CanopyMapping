@@ -2,3 +2,10 @@ data/
 results/
 logs/
 models/checkpoints/
+.ipynb_checkpoints/
+src/.ipynb_checkpoints/
+src/wandb/
+src/SEG_SPLIT_TEST/
+src/models/.ipynb_checkpoints
+src/models/checkpoints/
+src/legacy/
