@@ -1,31 +1,4 @@
-import sys
-#sys.path.append('../')
-
-import os
-os.environ['GTIFF_SRS_SOURCE'] = 'EPSG'
-
-import logging
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s',
-                    filename='../logs/create-dataset.log',#'../logs/image_processing.log',
-                    filemode='a')
 import argparse
-
-from utils.imageprocessing import split, createPNG_Dataset, remove_empty_images
-from utils.datasetvalidation import set_valid_CRS, dropna_PNGs
-
-from utils.dataloading import ImageNameDataset
-from utils.traintestsplit import middle_split
-import torch
-from torch.utils.data import DataLoader, random_split
-
-import shutil
-import time
-import pandas as pd
-
-from utils.datasetvalidation import check_images_size
-from utils.augmentation import rotate_train_pairs
-
 '''
 pipeline:
     - split
@@ -45,13 +18,47 @@ if __name__ == '__main__':
     #                filename='./logs/create-dataset.log',
     #                filemode='w')
     #
-    dataset_folder = '../data/2024-09-29-seg-dataset-400'
-    size = (400,400)
+    parser = argparse.ArgumentParser(description='Train the model on images and target masks',
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('-s', '--img_size', dest='size', type=int, default=512,
+                        help='The size of the images')
+    args = parser.parse_args()
+    tile_size = args.size
+    
+    dataset_folder = f'../data/2024-10-30-loc-dataset-{tile_size}-dropna'
+    size = (tile_size,tile_size)
     tif_path = '../data/raw/2023-02-23_Bakonyszucs_actual.tif'
     shp_path = '../data/raw/Fa_pontok.shp'#'../data/test_data/conc_biomed_full.shp'
     train_size = 0.8
     valid_size = 0.05
     batch_size = 1
+    
+    
+    ####---- imports ----####
+    
+    import sys
+    #sys.path.append('../')
+    import os
+    os.environ['GTIFF_SRS_SOURCE'] = 'EPSG'
+    import logging
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s - %(levelname)s - %(message)s',
+                        filename=f'../logs/create-dataset_{tile_size}.log',#'../logs/image_processing.log',
+                        filemode='a')
+
+    from utils.imageprocessing import split, createPNG_Dataset, remove_empty_images
+    from utils.datasetvalidation import set_valid_CRS, dropna_PNGs
+
+    from utils.dataloading import ImageNameDataset
+    from utils.traintestsplit import middle_split
+    import torch
+    from torch.utils.data import DataLoader, random_split
+    import shutil
+    import time
+    import pandas as pd
+    from utils.datasetvalidation import check_images_size
+    from utils.augmentation import rotate_train_pairs
+    
 
     os.makedirs(os.path.join(dataset_folder, 'train','images'), exist_ok=True)
     os.makedirs(os.path.join(dataset_folder, 'train','masks'), exist_ok=True)
@@ -62,6 +69,10 @@ if __name__ == '__main__':
     
     os.makedirs(os.path.join(dataset_folder,'all','original'),exist_ok=True) #folder
     os.makedirs(os.path.join(dataset_folder,'all','formatted'),exist_ok=True) #out_folder
+
+    ####---- ----####
+
+
 
     #split into tiles
     split(
