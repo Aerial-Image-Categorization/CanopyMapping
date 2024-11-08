@@ -166,8 +166,8 @@ if __name__ == '__main__':
     logging.info(f'🏁 Train-Validation-Test Splitage finished in {int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}\n{df.to_string(index=False)}')
 
     #drop empty pairs from train & validation sets
-    train_bin_list, _ = dropna_PNGs(os.path.join(dataset_folder, 'train'))
-    val_bin_list, _ = dropna_PNGs(os.path.join(dataset_folder, 'val'))
+    #train_bin_list, _ = dropna_PNGs(os.path.join(dataset_folder, 'train'))
+    #val_bin_list, _ = dropna_PNGs(os.path.join(dataset_folder, 'val'))
 
     #check images size
     invalid_train_imgs, invalid_val_imgs = check_images_size(dataset_folder)
