@@ -5,7 +5,7 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 
-def undersample_image_mask_pairs(src_image_folder, src_mask_folder, dest_image_folder, dest_mask_folder, sample_ratio=0.5):
+def undersample_image_mask_pairs(src_image_folder, src_mask_folder, dest_image_folder, dest_mask_folder, ratio=0.5):
     """
     Copies image-mask pairs to destination folders with undersampling on fully black masks.
     Only copies 50% of pairs where the mask is fully black, and all pairs where the mask has non-black pixels.
@@ -15,7 +15,7 @@ def undersample_image_mask_pairs(src_image_folder, src_mask_folder, dest_image_f
     - src_mask_folder (str): Source folder for mask images.
     - dest_image_folder (str): Destination folder for undersampled images.
     - dest_mask_folder (str): Destination folder for undersampled masks.
-    - sample_ratio (float): Ratio of full-black mask pairs to keep (default is 0.5).
+    - ratio (float): Ratio of full-black mask pairs to keep (default is 0.5).
     """
     # Ensure destination folders exist
     os.makedirs(dest_image_folder, exist_ok=True)
@@ -23,7 +23,14 @@ def undersample_image_mask_pairs(src_image_folder, src_mask_folder, dest_image_f
 
     # Get all mask files in the source folder
     mask_files = [f for f in os.listdir(src_mask_folder) if f.endswith(".png")]
+    
+    empty_counter = 0
+    for filename in tqdm(mask_files, desc="Checking for black-only masks"):
+        with Image.open(os.path.join(src_mask_folder, filename)) as img:
+            if np.all(np.array(img.convert("L")) == 0):
+                empty_counter+=1
 
+    sample_ratio = ratio/(empty_counter/len(mask_files))
     # Loop through each mask file with a progress bar
     for mask_filename in tqdm(mask_files, desc="Processing mask files", leave=False):
         mask_path = os.path.join(src_mask_folder, mask_filename)
@@ -51,15 +58,23 @@ def undersample_image_mask_pairs(src_image_folder, src_mask_folder, dest_image_f
 
 
 if __name__ == '__main__':
-    sizes = [192,256,384,512]
+    sizes = [
+        #192,
+        #256,
+        #384,
+        #512,
+        1024,
+        #2048
+    ]
 
     for size in tqdm(sizes, desc="Processing datasets", leave=True):
         dataset_folder = f'../data/2024-10-30-loc-dataset-{size}'
         sample_name = 'aug_train'
 
-        src_image_folder = os.path.join(dataset_folder,sample_name,'images')  # Folder containing source images
-        src_mask_folder = os.path.join(dataset_folder,sample_name,'masks')  # Folder containing source masks
-        dest_image_folder = os.path.join(dataset_folder,'aug_train_u','images')   # Destination folder for undersampled images
-        dest_mask_folder = os.path.join(dataset_folder,'aug_train_u','masks')     # Destination folder for undersampled masks
-
-        undersample_image_mask_pairs(src_image_folder, src_mask_folder, dest_image_folder, dest_mask_folder)
+        undersample_image_mask_pairs(
+            src_image_folder = os.path.join(dataset_folder,sample_name,'images'),
+            src_mask_folder = os.path.join(dataset_folder,sample_name,'masks'),
+            dest_image_folder = os.path.join(dataset_folder,'aug_train_u10','images'),
+            dest_mask_folder = os.path.join(dataset_folder,'aug_train_u10','masks'),
+            ratio=0.1
+        )
