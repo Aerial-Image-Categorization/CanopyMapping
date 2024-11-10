@@ -9,3 +9,16 @@ src/SEG_SPLIT_TEST/
 src/models/.ipynb_checkpoints
 src/models/checkpoints/
 src/legacy/
+src/checkpoints
+.*
+*.log
+*.pth
+*.pkl
+*.pyc
+src/checkpoints/*.pth
+src/models/Mask2Former3/
+src/transunet_test/
+!.gitignore
+src/transunet_test1/
+src/transunet_test2/
+src/transunet_test3/
