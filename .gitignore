@@ -16,9 +16,16 @@ src/checkpoints
 *.pkl
 *.pyc
 src/checkpoints/*.pth
+src/models/Mask2Former/
+src/models/Mask2Former2/
 src/models/Mask2Former3/
 src/transunet_test/
 !.gitignore
 src/transunet_test1/
 src/transunet_test2/
 src/transunet_test3/
+src/models/TransUNet/
+src/models/my_UNet/
+src/models/UNet
+*checkpoint*
+
