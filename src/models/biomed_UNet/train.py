@@ -504,7 +504,7 @@ def train_net(
     val_loader = DataLoader(valid_set, shuffle=False, drop_last=False, **val_loader_args)
 
     # (Initialize logging)
-    experiment = wandb.init(project='TreeDetection', resume='allow', anonymous='must',name=name, magic=True)
+    experiment = wandb.init(project='CanopyMapping', resume='allow', anonymous='must',name=name, magic=True)
     experiment.config.update(
         dict(epochs=epochs, batch_size=batch_size, learning_rate=learning_rate,
              val_percent=val_percent, save_checkpoint=save_checkpoint, img_scale=img_scale, amp=amp)
