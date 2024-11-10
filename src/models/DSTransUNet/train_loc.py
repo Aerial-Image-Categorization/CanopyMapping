@@ -27,7 +27,53 @@ from utils.earlystopping import EarlyStopping
 
 import wandb
 from utils.eval import evaluate
-from utils.scores import jaccard_loss
+
+import numpy as np
+import matplotlib.pyplot as plt
+import wandb
+
+
+def conf_matrix(
+    TP,
+    FP,
+    FN,
+    TN,
+    class_labels = ["Negative", "Positive"],
+    xlabel = "Predicted Label",
+    ylabel = "True Label",
+    title = 'Binary Confusion Matrix'
+):
+    cm = np.array([[TN, FP],
+                   [FN, TP]])
+    fig, ax = plt.subplots(figsize=(6, 6))
+    cax = ax.matshow(cm, cmap="Blues")
+
+    for (i, j), val in np.ndenumerate(cm):
+        ax.text(j, i, f"{val}", ha="center", va="center", color="black")
+
+    plt.colorbar(cax)
+
+    ax.set_xticks([0, 1])
+    ax.set_yticks([0, 1])
+    ax.set_xticklabels(class_labels)
+    ax.set_yticklabels(class_labels)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    plt.title(title)
+    return fig
+
+def precision_recall_curve(precision, recall):
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.plot(recall, precision, marker='.', label='PR Curve')
+    ax.set_xlabel('Recall')
+    ax.set_ylabel('Precision')
+    ax.title('Precision-Recall Curve')
+    ax.legend()
+    ax.grid(True)
+
+    return fig
+
+
 
 def get_logger(filename, verbosity=1, name=None):
     level_dict = {0: logging.DEBUG, 1: logging.INFO, 2: logging.WARNING}
@@ -112,9 +158,12 @@ def train_net(net,
     n_train = cal(train_loader)
     n_val = cal(val_loader)
     logger = get_logger(f'ds_transunet_base_{img_size}.log')
+    #logger = get_logger(f'ds_transunet_base_1024.log')
 
     # (Initialize logging)
-    name=f'ds_transunet_base_{img_size}'#opt_sch'
+    name=f'ds_transunet_base_{img_size}_u10'#opt_sch'
+    if img_size>512:
+        img_size = 512
     save_checkpoint=True
     img_scale=1
     amp=False
@@ -136,8 +185,9 @@ def train_net(net,
     ''')
 
     optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, epochs//5, lr/10)
-    
+    #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, epochs//5, lr/10)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, epochs, lr/10, last_epoch=-1)
+
     #optimizer = optim.RMSprop(net.parameters(),
     #                          lr=lr, weight_decay=1e-4, momentum=0.9, foreach=True)
     #scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=5)  # goal: maximize Dice score
@@ -152,8 +202,8 @@ def train_net(net,
     size_rates = [img_size]
     global_step = 0
     
-    early_stopping = EarlyStopping(patience=10, min_delta=0.001, mode="max")
-    
+    early_stopping = EarlyStopping(patience=5, min_delta=0.001, mode="max")
+
     for epoch in range(epochs):
         net.train()
 
@@ -180,8 +230,6 @@ def train_net(net,
                     loss3 = structure_loss(l3, true_masks)
                     loss = 0.6*loss1 + 0.2*loss2 + 0.2*loss3
                     
-                    #loss = jaccard_loss(masks_pred.squeeze(1), true_masks.squeeze(1).float(), multiclass=False)
-                    
                     epoch_loss += loss.item()
                     
                     
@@ -206,33 +254,69 @@ def train_net(net,
                     if global_step % division_step == 0:
                         
                         #val_dice = eval_net(net, val_loader, device)
-                        val_score = evaluate(net, val_loader, device, False)
+                        val_score = evaluate(net, val_loader, device, epoch, False)
+
+                        #if isinstance(val_score['dice_score'], torch.Tensor) and val_score['dice_score'].requires_grad:
+                        #    raise RuntimeError("In-place operations or tensors that require gradients are not allowed in scheduler.step().")
+                        #
+                        #if not isinstance(val_score['dice_score'], (float, int)):
+                        #    raise ValueError(f"Invalid value for dice_score: {val_score['dice_score']} -> {type(val_score['dice_score'])}")
+
+                        scheduler.step(val_score['dice_score'].item())
                         
-                        scheduler.step(val_score['dice_score'])
+                        
                         val_dice = val_score['dice_score']
                         if val_dice > best_dice:
                            best_dice = val_dice
                            b_cp = True
                         epoch_loss = epoch_loss / Batch
                         logger.info('epoch: {} train_loss: {:.3f} epoch_dice: {:.3f}, best_dice: {:.3f}'.format(epoch + 1, epoch_loss, val_dice, best_dice))
+         
+                        val_predictions = np.zeros((len(np.array(val_score['predictions']['prob'])), 2))
+                        val_predictions[:, 1] = np.array(val_score['predictions']['prob'])
+                        val_predictions[:, 0] = 1 - val_predictions[:, 1]
+                        
+                        y_true = val_score['ground_truth'].cpu().numpy().tolist() if isinstance(val_score['ground_truth'], torch.Tensor) else val_score['ground_truth']
+                        preds = val_score['predictions']['label'].cpu().numpy().tolist() if isinstance(val_score['predictions']['label'], torch.Tensor) else val_score['predictions']['label']
 
+                        #print(y_true)
+                        #print(preds)
                         try:
-                            experiment.log({
+                            wandb_log_data = {
                                 'learning rate': optimizer.param_groups[0]['lr'],
                                 'Segmentation metrics': {
                                     'Dice': val_dice, #val_score['dice_score'],
-                                    'IoU':val_score['iou']
+                                    'IoU':val_score['iou'],
+                                    'Weighted IoU': val_score['w_iou'],
+                                    'Weighted Dice': val_score['w_dice']
                                 },
                                 #'validation Dice': val_score['dice_score'],
                                 #'validation IoU': val_score['iou'],
                                 'Classification metrics': {
-                                    'Accuracy': val_score['ob_accuracy'],
-                                    'Precision': val_score['ob_precision'],
-                                    'Recall': val_score['ob_recall'],
-                                    'F1-score': val_score['ob_f1']
+                                    'obj. IoU 50': val_score['obj_iou_50'],
+                                    'Accuracy 50': val_score['ob_accuracy_50'],
+                                    'Precision 50': val_score['ob_precision_50'],
+                                    'Recall 50': val_score['ob_recall_50'],
+                                    'F1-score 50': val_score['ob_f1_50'],
+                                    'Weighted obj. IoU 50': val_score['obj_w_iou_50'],
+                                    'Weighted Accuracy 50': val_score['ob_w_accuracy_50'],
+                                    'Weighted Precision 50': val_score['ob_w_precision_50'],
+                                    'Weighted Recall 50': val_score['ob_w_recall_50'],
+                                    'Weighted F1-score 50': val_score['ob_w_f1_50'],
+                                    'Weighted obj. IoU 25': val_score['obj_w_iou_25'],
+                                    'Weighted Accuracy 25': val_score['ob_w_accuracy_25'],
+                                    'Weighted Precision 25': val_score['ob_w_precision_25'],
+                                    'Weighted Recall 25': val_score['ob_w_recall_25'],
+                                    'Weighted F1-score 25': val_score['ob_w_f1_25'],
+                                    #
+                                    #'Weighted obj. IoU 50-25': [val_score['obj_w_iou_50'],val_score['obj_w_iou_25']],
+                                    #'Weighted Accuracy 50-25': [val_score['ob_w_accuracy_50'],val_score['ob_w_accuracy_25']],
+                                    #'Weighted Precision 50-25': [val_score['ob_w_precision_50'],val_score['ob_w_precision_25']],
+                                    #'Weighted Recall 50-25': [val_score['ob_w_recall_50'],val_score['ob_w_recall_25']],
+                                    #'Weighted F1-score 50-25': [val_score['ob_w_f1_50'],val_score['ob_w_f1_25']],
                                 },
                                 'train': {
-                                    'images': wandb.Image(imgs[0].cpu()),
+                                    'images': wandb.Image(images[0].cpu()),
                                     'masks': {
                                         'true': wandb.Image(true_masks[0].float().cpu()),
                                         'pred': wandb.Image((torch.sigmoid(masks_pred[0]) > 0.5).float().cpu()),
@@ -248,7 +332,27 @@ def train_net(net,
                                 'step': global_step,
                                 'epoch': epoch,
                                 #**histograms
-                            })
+                            }
+                            if epoch > 5:
+                                wandb_log_data.update({
+                                "Confusion Matrix": wandb.plot.confusion_matrix(
+                                    probs=None,
+                                    y_true=y_true,
+                                    preds=preds,
+                                    class_names=['background', 'tree']
+                                ),
+                                "Precision-Recall Curve": wandb.plot.pr_curve(
+                                    np.array(val_score['ground_truth']),
+                                    val_predictions,
+                                    labels=["background", "tree"]
+                                ),
+                                "ROC curve": wandb.plot.roc_curve(
+                                    np.array(val_score['ground_truth']),
+                                    val_predictions,
+                                    labels=["background", "tree"]
+                                ),
+                                })
+                            experiment.log(wandb_log_data)
                         except Exception as e:
                             print(f'error {e}')
                             pass
@@ -297,11 +401,11 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     args = get_args()
     
-    train_img_dir = f'../data/2024-10-30-loc-dataset-{args.size}-dropna/aug_train/images/'
-    train_mask_dir = f'../data/2024-10-30-loc-dataset-{args.size}-dropna/aug_train/masks/'
-    val_img_dir = f'../data/2024-10-30-loc-dataset-{args.size}-dropna/val/images/'
-    val_mask_dir = f'../data/2024-10-30-loc-dataset-{args.size}-dropna/val/masks/'
-    dir_checkpoint = f'ds_transunet_checkpoints_{args.size}/'
+    train_img_dir = f'../data/2024-10-30-loc-dataset-{args.size}/aug_train_u10/images/'
+    train_mask_dir = f'../data/2024-10-30-loc-dataset-{args.size}/aug_train_u10/masks/'
+    val_img_dir = f'../data/2024-10-30-loc-dataset-{args.size}/val/images/'
+    val_mask_dir = f'../data/2024-10-30-loc-dataset-{args.size}/val/masks/'
+    dir_checkpoint = f'ds_transunet_checkpoints_{args.size}_u10_man/'
     
     
     
@@ -329,7 +433,9 @@ if __name__ == '__main__':
                   batch_size=args.batchsize,
                   lr=args.lr,
                   device=device,
-                  img_size=args.size)
+                  img_size=args.size#512 ## TODO !!! args.size
+                  
+        ) 
     except KeyboardInterrupt:
         torch.save(net.state_dict(), 'INTERRUPTED.pth')
         logging.info('Saved interrupt')

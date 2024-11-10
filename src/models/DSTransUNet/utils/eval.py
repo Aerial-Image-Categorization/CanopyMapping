@@ -103,7 +103,10 @@ def evaluate(net, dataloader, device, amp):
     total_fp = 0
     total_fn = 0
     
-    total_preds =[]
+    total_preds = {
+        'label': [],
+        'prob': []
+    }
     total_ground_truth=[]
     # iterate over the validation set
     with torch.autocast(device.type if device.type != 'mps' else 'cpu', enabled=amp):
@@ -187,7 +190,8 @@ def evaluate(net, dataloader, device, amp):
                 total_ob_w_recall_25 += obj_w_cl_results_25['recall']
                 total_ob_w_f1_25 += obj_w_cl_results_25['f1']
                 total_ob_w_iou_25 += obj_w_cl_results_25['mean_iou']
-                total_preds += obj_w_cl_results_25['predictions']
+                total_preds['label'].extend(obj_w_cl_results_25['predictions']['label'])
+                total_preds['prob'].extend(obj_w_cl_results_25['predictions']['prob'])
                 total_ground_truth += obj_w_cl_results_25['ground_truth']
 
                 total_iou += iou(mask_pred.squeeze(0), mask_true.squeeze(0), reduce_batch_first=False)

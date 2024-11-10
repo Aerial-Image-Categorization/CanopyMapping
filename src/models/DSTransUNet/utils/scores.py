@@ -202,6 +202,7 @@ def objectwise_classification_metrics(mask_pred, mask_true, threshold=0.5, weigh
     batch_size = mask_pred.shape[0]
     
     total_true_positive_count = 0
+    total_true_negative_count = 0 #empty image-mask pairs
     total_false_positive_count = 0
     total_false_negative_count = 0
     iou_scores = []
@@ -210,14 +211,23 @@ def objectwise_classification_metrics(mask_pred, mask_true, threshold=0.5, weigh
     fp_mask_batch = np.zeros_like(mask_true.cpu().numpy())
     fn_mask_batch = np.zeros_like(mask_true.cpu().numpy())
     
-    preds = []
+    preds = {
+        'label': [],
+        'prob': []
+    }
     ground_truth = []
     
     for i in range(batch_size):
         true_mask = mask_true[i].cpu().numpy()
         pred_mask = mask_pred[i].cpu().numpy()
         
+        true_positive_count = 0
+        true_negative_count = 0
+        false_positive_count = 0
+        false_negative_count = 0
+        
         if np.all(true_mask == 0) and np.all(pred_mask == 0): #not returns 0 if both empty
+            true_negative_count += 1
             continue
         
         labeled_true = label(true_mask)
@@ -240,9 +250,6 @@ def objectwise_classification_metrics(mask_pred, mask_true, threshold=0.5, weigh
         true_objects = np.unique(labeled_true)[1:]  # Exclude background (label 0)
         pred_objects = np.unique(labeled_pred)[1:]
 
-        true_positive_count = 0
-        false_positive_count = 0
-        false_negative_count = 0
 
         for pred_obj in pred_objects:
             pred_obj_mask = labeled_pred == pred_obj
@@ -265,12 +272,14 @@ def objectwise_classification_metrics(mask_pred, mask_true, threshold=0.5, weigh
             if max_iou >= threshold:
                 true_positive_count += 1
                 tp_mask[pred_obj_mask] = 1
-                preds.append(1)
+                preds['label'].append(1)
+                preds['prob'].append(max_iou)
                 ground_truth.append(1)
             else:
                 false_positive_count += 1
                 fp_mask[pred_obj_mask] = 1
-                preds.append(1)
+                preds['label'].append(1)
+                preds['prob'].append(max_iou)
                 ground_truth.append(0)
 
         for true_obj in true_objects:
@@ -278,10 +287,12 @@ def objectwise_classification_metrics(mask_pred, mask_true, threshold=0.5, weigh
             if not np.logical_and(true_obj_mask, pred_mask).any():
                 false_negative_count += 1
                 fn_mask[true_obj_mask] = 1
-                preds.append(0)
+                preds['label'].append(0)
+                preds['prob'].append(1.0)
                 ground_truth.append(1)
 
         total_true_positive_count += true_positive_count
+        total_true_negative_count += true_negative_count
         total_false_positive_count += false_positive_count
         total_false_negative_count += false_negative_count
 
@@ -309,6 +320,7 @@ def objectwise_classification_metrics(mask_pred, mask_true, threshold=0.5, weigh
         'f1': f1,
         'mean_iou': mean_iou,
         'true_positive_count': total_true_positive_count,
+        'true_negative_count': total_true_negative_count, #empty image-mask pairs
         'false_positive_count': total_false_positive_count,
         'false_negative_count': total_false_negative_count,
         'tp_mask_batch': tp_mask_batch,
