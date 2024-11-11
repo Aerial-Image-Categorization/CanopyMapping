@@ -8,6 +8,15 @@ from PIL import Image
 import shutil
 import cv2
 
+def shadow_boosting(image):
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    if len(image.shape) == 3:
+        return cv2.merge([clahe.apply(channel) for channel in cv2.split(image)])
+    else:
+        return clahe.apply(image) #grayscale
+        
+        
+
 def NDVI(image):
     green = image[:, :, 1].astype(float)
     red = image[:, :, 2].astype(float)
@@ -40,8 +49,14 @@ def process(src_image_folder, src_mask_folder, dest_image_folder, dest_mask_fold
         image = cv2.imread(image_path)
         mask = cv2.imread(mask_path, 0)
         
+        
+        ### image man.
         image = NDVI(image)
+        ###
+        
+        ### resize (interpolate)
         image, mask = interpolate(image, mask, int_size)
+        ###
         
         cv2.imwrite(os.path.join(dest_image_folder, mask_filename.replace('_shp_','_tif_')), image)
         cv2.imwrite(os.path.join(dest_mask_folder, mask_filename), mask)
