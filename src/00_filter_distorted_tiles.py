@@ -4,7 +4,7 @@ from PIL import Image
 import numpy as np
 from tqdm import tqdm
 
-def filter_biased_images(src_folder, dest_folder, radius):
+def filter_distorted_images(src_folder, dest_folder, radius):
     """
     Copies mask images from src_folder to dest_folder if they contain white pixels
     within a specified radius around the center of the image.
@@ -60,4 +60,4 @@ if __name__ == '__main__':
     src_folder = f'../../data/2024-11-03-seg-dataset-{img_size}/aug_train/masks'
     dest_folder = f'../../data/2024-11-03-seg-dataset-{img_size}/aug_train_filtered/masks'
     radius = 100
-    filter_biased_images(src_folder, dest_folder, radius)
+    filter_distorted_images(src_folder, dest_folder, radius)
