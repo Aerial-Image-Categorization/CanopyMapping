@@ -102,3 +102,77 @@ class ImageDataset(Dataset):
             'image_coords': self.image_coords[idx],
             'mask_coords': self.mask_coords[idx],
         }
+    
+class SegImageDataset(Dataset):
+    def __init__(self, dataset_path) -> None:
+        images = os.listdir(os.path.join(dataset_path,'images'))
+        #files = os.listdir(dataset_path)
+        self.images_path = []
+        self.masks_path = []
+        self.image_coords = []
+        self.mask_coords = []
+        self.mask_values = [0,255]
+        
+        for file in images:
+            if file.endswith('png'):
+                self.images_path.append(os.path.join(os.path.join(dataset_path,'images'),file))
+                self.masks_path.append(os.path.join(os.path.join(dataset_path,'masks'),file.replace('tif','shp')))
+                i = splitext(file)[0].split('_')[-1]
+                self.image_coords.append(i)
+                self.mask_coords.append(i)
+                
+    def __len__(self):
+        return len(self.images_path)
+    
+    @staticmethod
+    def preprocess(mask_values, pil_img, scale, is_mask):
+        w, h = pil_img.size
+        newW, newH = int(scale * w), int(scale * h)
+        assert newW > 0 and newH > 0, 'Scale is too small, resized images would have no pixel'
+        pil_img = pil_img.resize((newW, newH), resample=Image.NEAREST if is_mask else Image.BICUBIC)
+        img = np.asarray(pil_img)
+
+        if is_mask:
+            mask = np.zeros((newH, newW), dtype=np.int64)
+            for i, v in enumerate(mask_values):
+                if img.ndim == 2:
+                    mask[img == v] = i
+                else:
+                    mask[(img == v).all(-1)] = i
+
+            return mask
+
+        else:
+            if img.ndim == 2:
+                img = img[np.newaxis, ...]
+            else:
+                img = img.transpose((2, 0, 1))
+
+            if (img > 1).any():
+                img = img / 255.0
+
+            return img
+        
+    def __getitem__(self, idx):
+        #return {
+        #    'image': self.images_path[idx],
+        #    'mask': self.masks_path[idx]
+        #}
+        img = load_image(self.images_path[idx])
+        mask = load_image(self.masks_path[idx])
+        #img = img.convert('L')
+        
+        assert img.size == mask.size, \
+            f'Image and mask should be the same size, but are {img.size} and {mask.size}'
+
+        self.scale = 1.0
+        #self.scale = 0.2
+        
+        img = self.preprocess(self.mask_values, img, self.scale, is_mask=False)
+        mask = self.preprocess(self.mask_values, mask, self.scale, is_mask=True)
+        return {
+            'image': torch.as_tensor(img.copy()).float().contiguous(),
+            'mask': torch.as_tensor(mask.copy()).long().contiguous(),
+            'image_coords': self.image_coords[idx],
+            'mask_coords': self.mask_coords[idx],
+        }
