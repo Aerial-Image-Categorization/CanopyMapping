@@ -40,7 +40,7 @@ if __name__ == '__main__':
     valid_set = ImageDataset(valid_set_path)
     
     try:
-        UNet.train_net(
+        UNet.train_net_loc(
             train_set = train_set,
             valid_set = valid_set,
             model=model,
