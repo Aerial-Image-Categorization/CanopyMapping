@@ -6,7 +6,8 @@ from scipy.ndimage import center_of_mass, label
 import torch
 import numpy as np
 from scipy.ndimage import label
-from sklearn.metrics import precision_score, recall_score, f1_score
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
+
 
 from scipy.ndimage import label, distance_transform_edt
 
@@ -217,6 +218,9 @@ def objectwise_classification_metrics(mask_pred, mask_true, threshold=0.5, weigh
     }
     ground_truth = []
     
+    total_true_objects = []
+    total_pred_objects = []
+    
     for i in range(batch_size):
         true_mask = mask_true[i].cpu().numpy()
         pred_mask = mask_pred[i].cpu().numpy()
@@ -228,6 +232,9 @@ def objectwise_classification_metrics(mask_pred, mask_true, threshold=0.5, weigh
         
         if np.all(true_mask == 0) and np.all(pred_mask == 0): #not returns 0 if both empty
             true_negative_count += 1
+            preds['label'].append(0)
+            preds['prob'].append(1.0)
+            ground_truth.append(0)
             continue
         
         labeled_true = label(true_mask)
@@ -250,6 +257,8 @@ def objectwise_classification_metrics(mask_pred, mask_true, threshold=0.5, weigh
         true_objects = np.unique(labeled_true)[1:]  # Exclude background (label 0)
         pred_objects = np.unique(labeled_pred)[1:]
 
+        total_true_objects.append(true_objects)
+        total_pred_objects.append(pred_objects)
 
         for pred_obj in pred_objects:
             pred_obj_mask = labeled_pred == pred_obj
@@ -301,31 +310,37 @@ def objectwise_classification_metrics(mask_pred, mask_true, threshold=0.5, weigh
         fn_mask_batch[i] = fn_mask
 
     total = total_true_positive_count + total_false_positive_count + total_false_negative_count
+    # DEBUG
+    #print("Length of preds['label']: ", len(preds['label']))
+    #print("Length of ground_truth: ", len(ground_truth))
+    #print("Total count: ", total)
+
     if total == 0:
-        accuracy = 1.0
-        precision = 1.0
-        recall = 1.0
-        f1 = 1.0
-        mean_iou = 1.0
+        accuracy = None # 0.0 # 1.0
+        precision = None # 0.0 # 1.0
+        recall = None # 0.0 # 1.0
+        f1 = None # 0.0 # 1.0
+        mean_iou = None # 0.0 # 1.0
     else:
         accuracy = total_true_positive_count / total if total > 0 else 1.0
         precision = total_true_positive_count / (total_true_positive_count + total_false_positive_count) if (total_true_positive_count + total_false_positive_count) > 0 else 0.0
         recall = total_true_positive_count / (total_true_positive_count + total_false_negative_count) if (total_true_positive_count + total_false_negative_count) > 0 else 0.0
         f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
         mean_iou = np.mean(iou_scores) if iou_scores else 0.0
+        
     return {
-        'accuracy': accuracy,
-        'precision': precision,
-        'recall': recall,
-        'f1': f1,
+        #'accuracy': accuracy_score(ground_truth, preds['label']), #accuracy,
+        #'precision': precision_score(ground_truth, preds['label'], zero_division=0), #precision,
+        #'recall': recall_score(ground_truth, preds['label'], zero_division=0), #recall,
+        #'f1': f1_score(ground_truth, preds['label'], zero_division=0), #f1,
         'mean_iou': mean_iou,
-        'true_positive_count': total_true_positive_count,
-        'true_negative_count': total_true_negative_count, #empty image-mask pairs
-        'false_positive_count': total_false_positive_count,
-        'false_negative_count': total_false_negative_count,
-        'tp_mask_batch': tp_mask_batch,
-        'fp_mask_batch': fp_mask_batch,
-        'fn_mask_batch': fn_mask_batch,
+        #'true_positive_count': total_true_positive_count,
+        #'true_negative_count': total_true_negative_count, #empty image-mask pairs
+        #'false_positive_count': total_false_positive_count,
+        #'false_negative_count': total_false_negative_count,
+        #'tp_mask_batch': tp_mask_batch,
+        #'fp_mask_batch': fp_mask_batch,
+        #'fn_mask_batch': fn_mask_batch,
         'predictions': preds,
         'ground_truth': ground_truth
     }

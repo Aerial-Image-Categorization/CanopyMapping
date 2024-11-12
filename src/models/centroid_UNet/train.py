@@ -366,29 +366,6 @@ def train_net(
                                 },
                                 #'validation Dice': val_score['dice_score'],
                                 #'validation IoU': val_score['iou'],
-                                'Classification metrics': {
-                                    'obj. IoU 50': val_score['obj_iou_50'],
-                                    'Accuracy 50': val_score['ob_accuracy_50'],
-                                    'Precision 50': val_score['ob_precision_50'],
-                                    'Recall 50': val_score['ob_recall_50'],
-                                    'F1-score 50': val_score['ob_f1_50'],
-                                    'Weighted obj. IoU 50': val_score['obj_w_iou_50'],
-                                    'Weighted Accuracy 50': val_score['ob_w_accuracy_50'],
-                                    'Weighted Precision 50': val_score['ob_w_precision_50'],
-                                    'Weighted Recall 50': val_score['ob_w_recall_50'],
-                                    'Weighted F1-score 50': val_score['ob_w_f1_50'],
-                                    'Weighted obj. IoU 25': val_score['obj_w_iou_25'],
-                                    'Weighted Accuracy 25': val_score['ob_w_accuracy_25'],
-                                    'Weighted Precision 25': val_score['ob_w_precision_25'],
-                                    'Weighted Recall 25': val_score['ob_w_recall_25'],
-                                    'Weighted F1-score 25': val_score['ob_w_f1_25'],
-                                    #
-                                    #'Weighted obj. IoU 50-25': [val_score['obj_w_iou_50'],val_score['obj_w_iou_25']],
-                                    #'Weighted Accuracy 50-25': [val_score['ob_w_accuracy_50'],val_score['ob_w_accuracy_25']],
-                                    #'Weighted Precision 50-25': [val_score['ob_w_precision_50'],val_score['ob_w_precision_25']],
-                                    #'Weighted Recall 50-25': [val_score['ob_w_recall_50'],val_score['ob_w_recall_25']],
-                                    #'Weighted F1-score 50-25': [val_score['ob_w_f1_50'],val_score['ob_w_f1_25']],
-                                },
                                 'train': {
                                     'images': wandb.Image(images[0].cpu()),
                                     'masks': {
@@ -409,6 +386,33 @@ def train_net(
                             }
                             if epoch > 5:
                                 wandb_log_data.update({
+                                'Classification metrics': {
+                                    'obj. IoU 50': val_score['obj_iou_50'],
+                                    'Accuracy 50': val_score['ob_accuracy_50'],
+                                    'Precision 50': val_score['ob_precision_50'],
+                                    'Recall 50': val_score['ob_recall_50'],
+                                    'F1-score 50': val_score['ob_f1_50'],
+                                    'Weighted obj. IoU 50': val_score['obj_w_iou_50'],
+                                    'Weighted Accuracy 50': val_score['ob_w_accuracy_50'],
+                                    'Weighted Precision 50': val_score['ob_w_precision_50'],
+                                    'Weighted Recall 50': val_score['ob_w_recall_50'],
+                                    'Weighted F1-score 50': val_score['ob_w_f1_50'],
+                                    'Weighted obj. IoU 25': val_score['obj_w_iou_25'],
+                                    'Weighted Accuracy 25': val_score['ob_w_accuracy_25'],
+                                    'Weighted Precision 25': val_score['ob_w_precision_25'],
+                                    'Weighted Recall 25': val_score['ob_w_recall_25'],
+                                    'Weighted F1-score 25': val_score['ob_w_f1_25'],
+                                    #"ROC": roc_curve(y_true,preds),
+                                    #"ROC-AUC": roc_auc_score(y_true,preds),
+                                    #"Precision-Recall": precision_recall_curve(y_true,preds),
+                                    #"Average Precision": average_precision_score(y_true,preds)
+                                    #
+                                    #'Weighted obj. IoU 50-25': [val_score['obj_w_iou_50'],val_score['obj_w_iou_25']],
+                                    #'Weighted Accuracy 50-25': [val_score['ob_w_accuracy_50'],val_score['ob_w_accuracy_25']],
+                                    #'Weighted Precision 50-25': [val_score['ob_w_precision_50'],val_score['ob_w_precision_25']],
+                                    #'Weighted Recall 50-25': [val_score['ob_w_recall_50'],val_score['ob_w_recall_25']],
+                                    #'Weighted F1-score 50-25': [val_score['ob_w_f1_50'],val_score['ob_w_f1_25']],
+                                },
                                 "Confusion Matrix": wandb.plot.confusion_matrix(
                                     probs=None,
                                     y_true=y_true,
