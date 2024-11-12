@@ -14,177 +14,119 @@ from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
 
 import wandb
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
 #from .evaluate import evaluate
-#from .datasets import ImageDataset
+from .datasets import ImageDataset
 #from .scores import dice_loss, jaccard_loss
+
+import sys
+import os
+#sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append('../')
+
 from ..utils import evaluate
 from ..utils import dice_loss
 from ..utils import EarlyStopping
 
-import datetime
-
 import numpy as np
 
-def train_model_Jaccard(
-        dataset,
-        model,
-        device,
-        epochs: int = 5,
-        batch_size: int = 1,
-        learning_rate: float = 1e-5,
-        val_percent: float = 0.1,
-        save_checkpoint: bool = True,
-        img_scale: float = 0.5,
-        amp: bool = False,
-        weight_decay: float = 1e-8,
-        momentum: float = 0.999,
-        gradient_clipping: float = 1.0,
-):
-    name='unet-centroid-standard-iou-b6'
-    dir_checkpoint = Path(f'./checkpoints_{name}_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")}')
-    
-    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    logging.info(f'Using device {device}')
-    
-    model = model.to(memory_format=torch.channels_last)
-    
-    logging.info(f'Network:\n'
-                 f'\t{model.n_channels} input channels\n'
-                 f'\t{model.n_classes} output channels (classes)\n'
-                 f'\t{"Bilinear" if model.bilinear else "Transposed conv"} upscaling')
+import datetime
+        
+            
+import argparse
+import logging
+import os
+import sys
 
-    # 2. Split into train / validation partitions
-    n_val = int(len(dataset) * val_percent)
-    n_train = len(dataset) - n_val
-    train_set, val_set = random_split(dataset, [n_train, n_val], generator=torch.Generator().manual_seed(0))
+import numpy as np
+import torch
+import torch.nn as nn
+from torch import optim
+import torch.nn.functional as F
+from tqdm import tqdm
 
-    # 3. Create data loaders
-    loader_args = dict(batch_size=batch_size, num_workers=os.cpu_count(), pin_memory=True)
-    train_loader = DataLoader(train_set, shuffle=True, **loader_args)
-    val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
+#from utils.eval import eval_net
+#from lib.DS_TransUNet import UNet
+#
+#from torch.utils.data import DataLoader, random_split
+#from utils.dataloader import get_loader,test_dataset
 
-    # (Initialize logging)
-    experiment = wandb.init(project='TreeDetection', resume='allow', anonymous='must',name=name, magic=True)
-    experiment.config.update(
-        dict(epochs=epochs, batch_size=batch_size, learning_rate=learning_rate,
-             val_percent=val_percent, save_checkpoint=save_checkpoint, img_scale=img_scale, amp=amp)
+#train_img_dir = 'data/Kvasir_SEG/train/image/'x
+#train_mask_dir = 'data/Kvasir_SEG/train/mask/'x
+#val_img_dir = 'data/Kvasir_SEG/val/images/'x
+#val_mask_dir = 'data/Kvasir_SEG/val/masks/'x
+#dir_checkpoint = 'checkpoints/'x
+
+from sklearn.metrics import roc_curve, roc_auc_score, precision_recall_curve, average_precision_score
+
+import wandb
+#from utils.eval import evaluate
+
+import numpy as np
+import matplotlib.pyplot as plt
+import wandb
+
+def get_logger(filename, verbosity=1, name=None):
+    level_dict = {0: logging.DEBUG, 1: logging.INFO, 2: logging.WARNING}
+    formatter = logging.Formatter(
+        "[%(asctime)s][%(filename)s][line:%(lineno)d][%(levelname)s] %(message)s"
     )
+    logger = logging.getLogger(name)
+    logger.setLevel(level_dict[verbosity])
 
-    logging.info(f'''Starting training:
-        Epochs:          {epochs}
-        Batch size:      {batch_size}
-        Learning rate:   {learning_rate}
-        Training size:   {n_train}
-        Validation size: {n_val}
-        Checkpoints:     {save_checkpoint}
-        Device:          {device.type}
-        Images scaling:  {img_scale}
-        Mixed Precision: {amp}
-    ''')
+    fh = logging.FileHandler(filename, "w")
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
 
-    # 4. Set up the optimizer, the loss, the learning rate scheduler and the loss scaling for AMP
-    optimizer = optim.Adam(model.parameters(),
-                              lr=learning_rate, weight_decay=weight_decay, foreach=True)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=3)  # goal: maximize Dice score
-    grad_scaler = torch.cuda.amp.GradScaler(enabled=amp)
-    criterion = nn.CrossEntropyLoss() if model.n_classes > 1 else nn.BCEWithLogitsLoss()
-    global_step = 0
+    sh = logging.StreamHandler()
+    sh.setFormatter(formatter)
+    logger.addHandler(sh)
 
-    # 5. Begin training
-    for epoch in range(1, epochs + 1):
-        model.train()
-        epoch_loss = 0
-        with tqdm(total=n_train, desc=f'Epoch {epoch}/{epochs}', unit='img') as pbar:
-            for batch in train_loader:
-                images, true_masks = batch['image'], batch['mask']
+    return logger
 
-                assert images.shape[1] == model.n_channels, \
-                    f'Network has been defined with {model.n_channels} input channels, ' \
-                    f'but loaded images have {images.shape[1]} channels. Please check that ' \
-                    'the images are loaded correctly.'
+def cal(loader):
+    tot = 0
+    for batch in loader:
+        imgs, _ = batch
+        tot += imgs.shape[0]
+    return tot
 
-                images = images.to(device=device, dtype=torch.float32, memory_format=torch.channels_last)
-                true_masks = true_masks.to(device=device, dtype=torch.long)
+def structure_loss_with_0(pred, mask):
+    weit = 1 + 5*torch.abs(F.avg_pool2d(mask, kernel_size=31, stride=1, padding=15) - mask)
+    wbce = F.binary_cross_entropy_with_logits(pred, mask, reduce='none')
+    wbce = (weit*wbce).sum(dim=(2, 3)) / weit.sum(dim=(2, 3))
 
-                with torch.autocast(device.type if device.type != 'mps' else 'cpu', enabled=amp):
-                    masks_pred = model(images)
-                    if model.n_classes == 1:
-                        #loss = criterion(masks_pred.squeeze(1), true_masks.float())
-                        #loss += jaccard_loss(F.sigmoid(masks_pred.squeeze(1)), true_masks.float(), multiclass=False)
-                        loss = jaccard_loss(F.sigmoid(masks_pred.squeeze(1)), true_masks.float(), multiclass=False)
-                    else:
-                        #loss = criterion(masks_pred, true_masks)
-                        #loss += jaccard_loss(
-                        #    F.softmax(masks_pred, dim=1).float(),
-                        #    F.one_hot(true_masks, model.n_classes).permute(0, 3, 1, 2).float(),
-                        #    multiclass=True
-                        #)
-                        loss = jaccard_loss(
-                            F.softmax(masks_pred, dim=1).float(),
-                            F.one_hot(true_masks, model.n_classes).permute(0, 3, 1, 2).float(),
-                            multiclass=True
-                        )
+    pred = torch.sigmoid(pred)
+    inter = ((pred * mask)*weit).sum(dim=(2, 3))
+    union = ((pred + mask)*weit).sum(dim=(2, 3))
+    wiou = 1 - (inter + 1)/(union - inter+1)
+    return (wbce + wiou).mean()
 
-                optimizer.zero_grad(set_to_none=True)
-                grad_scaler.scale(loss).backward()
-                grad_scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clipping)
-                grad_scaler.step(optimizer)
-                grad_scaler.update()
+def structure_loss(pred, mask, epsilon=1e-6):
+    weit = 1 + 5 * torch.abs(F.avg_pool2d(mask, kernel_size=31, stride=1, padding=15) - mask)
 
-                pbar.update(images.shape[0])
-                global_step += 1
-                epoch_loss += loss.item()
-                experiment.log({
-                    'train loss': loss.item(),
-                    'step': global_step,
-                    'epoch': epoch
-                })
-                pbar.set_postfix(**{'loss (batch)': loss.item()})
+    wbce = F.binary_cross_entropy_with_logits(pred, mask, reduction='none')
+    wbce = (weit * wbce).sum(dim=(2, 3)) / weit.sum(dim=(2, 3))
 
-                # Evaluation round
-                division_step = (n_train // (5 * batch_size))
-                if division_step > 0:
-                    if global_step % division_step == 0:
-                        histograms = {}
-                        for tag, value in model.named_parameters():
-                            tag = tag.replace('/', '.')
-                            if not (torch.isinf(value) | torch.isnan(value)).any():
-                                histograms['Weights/' + tag] = wandb.Histogram(value.data.cpu())
-                            if not (torch.isinf(value.grad) | torch.isnan(value.grad)).any():
-                                histograms['Gradients/' + tag] = wandb.Histogram(value.grad.data.cpu())
+    pred = torch.sigmoid(pred)
+    inter = ((pred * mask) * weit).sum(dim=(2, 3))
+    union = ((pred + mask) * weit).sum(dim=(2, 3))
+    wiou = 1 - (inter + epsilon) / (union - inter + epsilon)
 
-                        val_score = evaluate(model, val_loader, device, amp)
-                        scheduler.step(val_score)
+    has_foreground = mask.sum(dim=(1, 2, 3)) > 0
 
-                        logging.info('Validation IoU score: {}'.format(val_score))
-                        try:
-                            experiment.log({
-                                'learning rate': optimizer.param_groups[0]['lr'],
-                                'validation IoU': val_score,
-                                'images': wandb.Image(images[0].cpu()),
-                                'masks': {
-                                    'true': wandb.Image(true_masks[0].float().cpu()),
-                                    'pred': wandb.Image(masks_pred.argmax(dim=1)[0].float().cpu()),
-                                },
-                                'step': global_step,
-                                'epoch': epoch,
-                                **histograms
-                            })
-                        except:
-                            pass
+    if has_foreground.any():
+        loss = (wbce + wiou)[has_foreground].mean()
+    else:
+        loss = (wbce + wiou).mean() * 0 #torch.tensor(0.0, device=torch.device('cuda'))#pred.device)
+    return loss
 
-        if save_checkpoint:
-            Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
-            state_dict = model.state_dict()
-            state_dict['mask_values'] = dataset.mask_values
-            torch.save(state_dict, str(dir_checkpoint / 'checkpoint_epoch{}.pth'.format(epoch)))
-            logging.info(f'Checkpoint {epoch} saved!')
-            
-            
-def train_net(
+def adjust_lr(optimizer, init_lr, epoch, decay_rate=0.1, decay_epoch=30):
+    decay = decay_rate ** (epoch // decay_epoch)
+    for param_group in optimizer.param_groups:
+        param_group['lr'] *= decay
+
+def train_net_seg(
         train_set,
         valid_set,
         model,
@@ -201,7 +143,7 @@ def train_net(
         momentum: float = 0.999,
         gradient_clipping: float = 1.0,
 ):
-    name=f'unet-centroid-{img_size}'
+    name=f'seg-unet-biomed-{img_size}'
     dir_checkpoint = Path(f'./checkpoints_{name}_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")}')
     
     if img_size > 512:
@@ -232,7 +174,7 @@ def train_net(
     val_loader = DataLoader(valid_set, shuffle=True, drop_last=False, **val_loader_args)
 
     # (Initialize logging)
-    experiment = wandb.init(project='TreeDetection', resume='allow', anonymous='must',name=name, magic=True)
+    experiment = wandb.init(project='CanopyMapping', resume='allow', anonymous='must',name=name, magic=True)
     experiment.config.update(
         dict(epochs=epochs, batch_size=batch_size, learning_rate=learning_rate,
              val_percent=val_percent, save_checkpoint=save_checkpoint, img_scale=img_scale, amp=amp)
@@ -346,14 +288,6 @@ def train_net(
                         if val_dice > best_dice:
                            best_dice = val_dice
                            b_cp = True
-                           
-                        val_predictions = np.zeros((len(np.array(val_score['predictions']['prob'])), 2))
-                        val_predictions[:, 1] = np.array(val_score['predictions']['prob'])
-                        val_predictions[:, 0] = 1 - val_predictions[:, 1]
-                        
-                        y_true = val_score['ground_truth'].cpu().numpy().tolist() if isinstance(val_score['ground_truth'], torch.Tensor) else val_score['ground_truth']
-                        preds = val_score['predictions']['label'].cpu().numpy().tolist() if isinstance(val_score['predictions']['label'], torch.Tensor) else val_score['predictions']['label']
-
                         
                         try:
                             wandb_log_data = {
@@ -384,52 +318,6 @@ def train_net(
                                 'epoch': epoch,
                                 #**histograms
                             }
-                            if epoch > 5:
-                                wandb_log_data.update({
-                                'Classification metrics': {
-                                    'obj. IoU 50': val_score['obj_iou_50'],
-                                    'Accuracy 50': val_score['ob_accuracy_50'],
-                                    'Precision 50': val_score['ob_precision_50'],
-                                    'Recall 50': val_score['ob_recall_50'],
-                                    'F1-score 50': val_score['ob_f1_50'],
-                                    'Weighted obj. IoU 50': val_score['obj_w_iou_50'],
-                                    'Weighted Accuracy 50': val_score['ob_w_accuracy_50'],
-                                    'Weighted Precision 50': val_score['ob_w_precision_50'],
-                                    'Weighted Recall 50': val_score['ob_w_recall_50'],
-                                    'Weighted F1-score 50': val_score['ob_w_f1_50'],
-                                    'Weighted obj. IoU 25': val_score['obj_w_iou_25'],
-                                    'Weighted Accuracy 25': val_score['ob_w_accuracy_25'],
-                                    'Weighted Precision 25': val_score['ob_w_precision_25'],
-                                    'Weighted Recall 25': val_score['ob_w_recall_25'],
-                                    'Weighted F1-score 25': val_score['ob_w_f1_25'],
-                                    #"ROC": roc_curve(y_true,preds),
-                                    #"ROC-AUC": roc_auc_score(y_true,preds),
-                                    #"Precision-Recall": precision_recall_curve(y_true,preds),
-                                    #"Average Precision": average_precision_score(y_true,preds)
-                                    #
-                                    #'Weighted obj. IoU 50-25': [val_score['obj_w_iou_50'],val_score['obj_w_iou_25']],
-                                    #'Weighted Accuracy 50-25': [val_score['ob_w_accuracy_50'],val_score['ob_w_accuracy_25']],
-                                    #'Weighted Precision 50-25': [val_score['ob_w_precision_50'],val_score['ob_w_precision_25']],
-                                    #'Weighted Recall 50-25': [val_score['ob_w_recall_50'],val_score['ob_w_recall_25']],
-                                    #'Weighted F1-score 50-25': [val_score['ob_w_f1_50'],val_score['ob_w_f1_25']],
-                                },
-                                "Confusion Matrix": wandb.plot.confusion_matrix(
-                                    probs=None,
-                                    y_true=y_true,
-                                    preds=preds,
-                                    class_names=['background', 'tree']
-                                ),
-                                "Precision-Recall Curve": wandb.plot.pr_curve(
-                                    np.array(val_score['ground_truth']),
-                                    val_predictions,
-                                    labels=["background", "tree"]
-                                ),
-                                "ROC curve": wandb.plot.roc_curve(
-                                    np.array(val_score['ground_truth']),
-                                    val_predictions,
-                                    labels=["background", "tree"]
-                                ),
-                                })
                             experiment.log(wandb_log_data)
                         except Exception as e:
                             print(f'error {e}')
