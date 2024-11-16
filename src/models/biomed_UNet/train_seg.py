@@ -24,7 +24,7 @@ import os
 #sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append('../')
 
-from ..utils import evaluate
+from ..utils import evaluate_seg
 from ..utils import dice_loss
 from ..utils import EarlyStopping
 
@@ -267,7 +267,7 @@ def train_net_seg(
                             if not (torch.isinf(value.grad) | torch.isnan(value.grad)).any():
                                 histograms['Gradients/' + tag] = wandb.Histogram(value.grad.data.cpu())
 
-                        val_score = evaluate(model, val_loader, device, epoch, amp)
+                        val_score = evaluate_seg(model, val_loader, device, epoch, amp)
 
                         scheduler.step(val_score['dice_score'].item())
 
@@ -295,8 +295,8 @@ def train_net_seg(
                                 'Segmentation metrics': {
                                     'Dice': val_dice, #val_score['dice_score'],
                                     'IoU':val_score['iou'],
-                                    'Weighted IoU': val_score['w_iou'],
-                                    'Weighted Dice': val_score['w_dice']
+                                    #'Weighted IoU': val_score['w_iou'],
+                                    #'Weighted Dice': val_score['w_dice']
                                 },
                                 #'validation Dice': val_score['dice_score'],
                                 #'validation IoU': val_score['iou'],
