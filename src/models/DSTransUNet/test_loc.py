@@ -19,7 +19,7 @@ from PIL import Image
 pred_path = 'output/kvasir/pred/'
 gt_path = 'output/kvasir/gt/'
 
-from utils.eval import test_evaluate, evaluate
+from ..utils import evaluate_transunet
 import wandb
 
 def eval_net(net, loader, device, n_class=1):
@@ -68,23 +68,76 @@ def test_net(net,
     net.eval()
 
     #eval_net(net, val_loader, device)
-    results = test_evaluate(net, val_loader, img_size, device, False)
+    results = evaluate_transunet(net, val_loader, img_size, device, False)
     
+    val_predictions = np.zeros((len(np.array(results['predictions']['prob'])), 2))
+    val_predictions[:, 1] = np.array(results['predictions']['prob'])
+    val_predictions[:, 0] = 1 - val_predictions[:, 1]
+    
+    y_true = results['ground_truth'].cpu().numpy().tolist() if isinstance(results['ground_truth'], torch.Tensor) else results['ground_truth']
+    preds = results['predictions']['label'].cpu().numpy().tolist() if isinstance(results['predictions']['label'], torch.Tensor) else results['predictions']['label']
+
     wandb.log({
-        'dice_score': results['dice_score'],
-        'iou': results['iou'],
-        #'px_accuracy': results['px_accuracy'],
-        #'px_precision': results['px_precision'],
-        #'px_recall': results['px_recall'],
-        #'px_f1': results['px_f1'],
-        'f1': results['ob_f1'],
-        'accuracy': results['ob_accuracy'],
-        'precision': results['ob_precision'],
-        'recall': results['ob_recall'],
-        'image': [wandb.Image(results['image'].cpu(), caption="Input Image")],
-        'mask_true': [wandb.Image(results['mask_true'].float().cpu(), caption="True Mask")],
-        'mask_pred': [wandb.Image(results['mask_pred'].float().cpu(), caption="Predicted Mask")]
+        'Segmentation metrics': {
+            'Dice': results['dice_score'],
+            'IoU':results['iou'],
+            'Weighted IoU': results['w_iou'],
+            'Weighted Dice': results['w_dice']
+        },
+        #'validation Dice': val_score['dice_score'],
+        #'validation IoU': val_score['iou'],
+        'Classification metrics': {
+            'obj. IoU 50': results['obj_iou_50'],
+            'Accuracy 50': results['ob_accuracy_50'],
+            'Precision 50': results['ob_precision_50'],
+            'Recall 50': results['ob_recall_50'],
+            'F1-score 50': results['ob_f1_50'],
+            'Weighted obj. IoU 50': results['obj_w_iou_50'],
+            'Weighted Accuracy 50': results['ob_w_accuracy_50'],
+            'Weighted Precision 50': results['ob_w_precision_50'],
+            'Weighted Recall 50': results['ob_w_recall_50'],
+            'Weighted F1-score 50': results['ob_w_f1_50'],
+            'Weighted obj. IoU 25': results['obj_w_iou_25'],
+            'Weighted Accuracy 25': results['ob_w_accuracy_25'],
+            'Weighted Precision 25': results['ob_w_precision_25'],
+            'Weighted Recall 25': results['ob_w_recall_25'],
+            'Weighted F1-score 25': results['ob_w_f1_25'],
+            #"ROC": roc_curve(y_true,preds),
+            #"ROC-AUC": roc_auc_score(y_true,preds),
+            #"Precision-Recall": precision_recall_curve(y_true,preds),
+            #"Average Precision": average_precision_score(y_true,preds)
+            #
+            #'Weighted obj. IoU 50-25': [val_score['obj_w_iou_50'],val_score['obj_w_iou_25']],
+            #'Weighted Accuracy 50-25': [val_score['ob_w_accuracy_50'],val_score['ob_w_accuracy_25']],
+            #'Weighted Precision 50-25': [val_score['ob_w_precision_50'],val_score['ob_w_precision_25']],
+            #'Weighted Recall 50-25': [val_score['ob_w_recall_50'],val_score['ob_w_recall_25']],
+            #'Weighted F1-score 50-25': [val_score['ob_w_f1_50'],val_score['ob_w_f1_25']],
+        },
+        'test': {
+            'images': wandb.Image(results['image'].cpu()),
+            'masks': {
+                'true': wandb.Image(results['mask_true'].float().cpu()),
+                'pred': wandb.Image(results['mask_pred'].float().cpu()),
+            }
+        },
+        "Confusion Matrix": wandb.plot.confusion_matrix(
+            probs=None,
+            y_true=y_true,
+            preds=preds,
+            class_names=['background', 'tree']
+        ),
+        "Precision-Recall Curve": wandb.plot.pr_curve(
+            np.array(results['ground_truth']),
+            val_predictions,
+            labels=["background", "tree"]
+        ),
+        "ROC curve": wandb.plot.roc_curve(
+            np.array(results['ground_truth']),
+            val_predictions,
+            labels=["background", "tree"]
+        ),
     })
+
 
 
 
