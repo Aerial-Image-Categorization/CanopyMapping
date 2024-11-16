@@ -18,7 +18,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.
 #from .evaluate import evaluate
 #from .datasets import ImageDataset
 #from .scores import dice_loss, jaccard_loss
-from ..utils import evaluate
+from ..utils import evaluate_seg
 from ..utils import dice_loss
 from ..utils import EarlyStopping
 
@@ -325,7 +325,7 @@ def train_net_seg(
                             if not (torch.isinf(value.grad) | torch.isnan(value.grad)).any():
                                 histograms['Gradients/' + tag] = wandb.Histogram(value.grad.data.cpu())
 
-                        val_score = evaluate(model, val_loader, device, epoch, amp)
+                        val_score = evaluate_seg(model, val_loader, device, epoch, amp)
 
                         scheduler.step(val_score['dice_score'].item())
 
