@@ -9,7 +9,7 @@ from torch.autograd import Variable
 #from utils.checkpoint import load_checkpoint
 #from mmseg.utils import get_root_logger
 
-from utils.module import Attention, PreNorm, FeedForward, CrossAttention
+from ..utils.module import Attention, PreNorm, FeedForward, CrossAttention
 
 groups = 32
 
