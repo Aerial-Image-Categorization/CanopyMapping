@@ -5,7 +5,7 @@ import argparse
 import torch
 import logging
 from models import biomed_UNet as UNet
-from models.biomed_UNet.test import test_net
+from models.biomed_UNet.test_seg import test_net
 
 
 def get_args():
@@ -28,7 +28,7 @@ if __name__ == '__main__':
     logging.info(f'Using device {device}')
     
     
-    test_dir = f'../data/2024-10-30-loc-dataset-{args.size}/test'
+    test_dir = f'../data/2024-11-12-seg-dataset-{args.size}/u_test_f50'
     
     net = UNet.model(UNet.config(n_channels=3, n_classes=1, bilinear=False))
 

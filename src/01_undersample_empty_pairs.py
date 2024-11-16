@@ -59,6 +59,7 @@ def undersample_image_mask_pairs(src_image_folder, src_mask_folder, dest_image_f
 
 if __name__ == '__main__':
     sizes = [
+        #128
         #192,
         #256,
         #384,
@@ -69,12 +70,12 @@ if __name__ == '__main__':
 
     for size in tqdm(sizes, desc="Processing datasets", leave=True):
         dataset_folder = f'../data/2024-10-30-loc-dataset-{size}'
-        sample_name = 'aug_train'
+        sample_name = 'u_aug_train'
 
         undersample_image_mask_pairs(
             src_image_folder = os.path.join(dataset_folder,sample_name,'images'),
             src_mask_folder = os.path.join(dataset_folder,sample_name,'masks'),
-            dest_image_folder = os.path.join(dataset_folder,'aug_train_u10','images'),
-            dest_mask_folder = os.path.join(dataset_folder,'aug_train_u10','masks'),
-            ratio=0.1
+            dest_image_folder = os.path.join(dataset_folder,'u_aug_train_u0','images'),
+            dest_mask_folder = os.path.join(dataset_folder,'u_aug_train_u0','masks'),
+            ratio=0.0
         )

@@ -10,14 +10,15 @@ from torch import optim
 import torch.nn.functional as F
 from tqdm import tqdm
 
-from utils.eval import eval_net
-from lib.DS_TransUNet import UNet
+#from utils.eval import eval_net
+from .lib.DS_TransUNet import UNet
 
 from torch.utils.data import DataLoader, random_split
-from utils.dataloader import get_loader,test_dataset
+from .utils.dataloader import get_loader,test_dataset
 
-from utils.earlystopping import EarlyStopping
+from ..utils.earlystopping import EarlyStopping
 
+from ..biomed_UNet.datasets import ImageDataset
 #train_img_dir = 'data/Kvasir_SEG/train/image/'x
 #train_mask_dir = 'data/Kvasir_SEG/train/mask/'x
 #val_img_dir = 'data/Kvasir_SEG/val/images/'x
@@ -26,11 +27,13 @@ from utils.earlystopping import EarlyStopping
 
 
 import wandb
-from utils.eval import evaluate
+from ..utils import evaluate_transunet
 
 import numpy as np
 import matplotlib.pyplot as plt
 import wandb
+
+from ..utils.losses import TreeSpotLocalizationLoss
 
 
 def conf_matrix(
@@ -102,7 +105,13 @@ def cal(loader):
     return tot
 
 def structure_loss_with_0(pred, mask):
-    weit = 1 + 5*torch.abs(F.avg_pool2d(mask, kernel_size=31, stride=1, padding=15) - mask)
+    #weit = 1 + 5*torch.abs(F.avg_pool2d(mask, kernel_size=31, stride=1, padding=15) - mask)
+    
+    
+    weit = 1 + F.avg_pool2d(mask, kernel_size=13, stride=1, padding=6)
+    weit = torch.where(weit < 1.2, torch.tensor(1.0, dtype=weit.dtype, device=weit.device), weit/1.2)
+    
+    
     wbce = F.binary_cross_entropy_with_logits(pred, mask, reduce='none')
     wbce = (weit*wbce).sum(dim=(2, 3)) / weit.sum(dim=(2, 3))
 
@@ -124,12 +133,13 @@ def structure_loss(pred, mask, epsilon=1e-6):
     union = ((pred + mask) * weit).sum(dim=(2, 3))
     wiou = 1 - (inter + epsilon) / (union - inter + epsilon)
 
-    has_foreground = mask.sum(dim=(1, 2, 3)) > 0
+    has_foreground_mask = mask.sum(dim=(1, 2, 3)) > 0
+    has_foreground_pred = pred.sum(dim=(1, 2, 3)) > 0
 
-    if has_foreground.any():
-        loss = (wbce + wiou)[has_foreground].mean()
+    if not has_foreground_mask.any() and not has_foreground_pred.any():
+        loss = (wbce + wiou).mean() * 0
     else:
-        loss = (wbce + wiou).mean() * 0 #torch.tensor(0.0, device=torch.device('cuda'))#pred.device)
+        loss = (wbce + wiou)[has_foreground_mask].mean()
     return loss
 
 
@@ -147,16 +157,25 @@ def train_net(net,
               device,
               epochs=500,
               batch_size=16,
-              lr=0.01,
+              lr=1e-5,
               save_cp=True,
               n_class=1,
               img_size=512):
 
-    train_loader = get_loader(train_img_dir, train_mask_dir, batchsize=batch_size, trainsize=img_size, augmentation = False)
-    val_loader = get_loader(val_img_dir, val_mask_dir, batchsize=1, trainsize=img_size, augmentation = False)
+    #train_loader = get_loader(train_img_dir, train_mask_dir, batchsize=batch_size, trainsize=img_size, augmentation = False)
+    #val_loader = get_loader(val_img_dir, val_mask_dir, batchsize=1, trainsize=img_size, augmentation = False)
 
-    n_train = cal(train_loader)
-    n_val = cal(val_loader)
+    train_set = ImageDataset(train_img_dir)
+    valid_set = ImageDataset(val_img_dir)
+    train_loader_args = dict(batch_size=batch_size, num_workers=os.cpu_count(), pin_memory=True)
+    val_loader_args = dict(batch_size=1, num_workers=os.cpu_count(), pin_memory=True)
+    train_loader = DataLoader(train_set, shuffle=True, **train_loader_args)
+    val_loader = DataLoader(valid_set, shuffle=True, drop_last=False, **val_loader_args)
+    
+    #n_train = cal(train_loader)
+    #n_val = cal(val_loader)
+    n_train = len(train_set)
+    n_val = len(valid_set)
     logger = get_logger(f'ds_transunet_base_{img_size}.log')
     #logger = get_logger(f'ds_transunet_base_1024.log')
 
@@ -167,7 +186,7 @@ def train_net(net,
     save_checkpoint=True
     img_scale=1
     amp=False
-    experiment = wandb.init(project='TreeDetection', resume='allow', anonymous='must',name=name, magic=True)
+    experiment = wandb.init(project='CanopyMapping', resume='allow', anonymous='must',name=name, magic=True)
     experiment.config.update(
         dict(epochs=epochs, batch_size=batch_size, learning_rate=lr,
              val_percent=n_val, save_checkpoint=save_checkpoint, img_scale=img_scale, amp=amp)
@@ -202,7 +221,8 @@ def train_net(net,
     size_rates = [img_size]
     global_step = 0
     
-    early_stopping = EarlyStopping(patience=5, min_delta=0.001, mode="max")
+    early_stopping = EarlyStopping(patience=10, min_delta=0.001, mode="max")
+    #loss_function = TreeSpotLocalizationLoss(w_dice_weight=0.5, tversky_weight=0.5, soft_l2_weight=0, tversky_alpha=0.2)
 
     for epoch in range(epochs):
         net.train()
@@ -213,7 +233,8 @@ def train_net(net,
         with tqdm(total=n_train*len(size_rates), desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:
             for batch in train_loader:
                 for rate in size_rates:
-                    imgs, true_masks = batch
+                    #imgs, true_masks = batch
+                    imgs, true_masks = batch['image'], batch['mask']
                     trainsize = rate
                     if rate != img_size:
                         imgs = F.upsample(imgs, size=(trainsize, trainsize), mode='bilinear', align_corners=True)
@@ -223,13 +244,32 @@ def train_net(net,
                     imgs = imgs.to(device=device, dtype=torch.float32)
                     mask_type = torch.float32 if n_class == 1 else torch.long
                     true_masks = true_masks.to(device=device, dtype=mask_type)
-
+                    #print('mask_pred max: '+str(mask_pred.max().item()))
+                    #print(mask_true.shape,mask_pred.shape)
+                    #dice_score.append(dice(mask_pred.squeeze(), mask_true.squeeze(), reduce_batch_first=False))
+                
                     masks_pred, l2, l3 = net(imgs)
-                    loss1 = structure_loss(masks_pred, true_masks)
-                    loss2 = structure_loss(l2, true_masks)
-                    loss3 = structure_loss(l3, true_masks)
-                    loss = 0.6*loss1 + 0.2*loss2 + 0.2*loss3
+                    #masks_pred = (F.sigmoid(masks_pred) > 0.5).float()
+                    ##masks_pred = masks_pred.squeeze(1)
+                    true_masks = true_masks.unsqueeze(0)
+                    loss1 = structure_loss_with_0(masks_pred, true_masks)
+                    loss2 = structure_loss_with_0(l2, true_masks)
+                    loss3 = structure_loss_with_0(l3, true_masks)
+                    loss = 0.6*loss1 + 0.2*loss2 + 0.2*loss3# + loss_function(torch.sigmoid(masks_pred.squeeze(0)), true_masks.float())
                     
+                    #loss1 = 0.1 * criterion(masks_pred.squeeze(1), true_masks.float()) + 0.9 * loss_function(torch.sigmoid(masks_pred.squeeze(1)), true_masks.float())
+                    #loss2 = 0.1 * criterion(masks_pred.squeeze(1), true_masks.float()) + 0.9 * loss_function(torch.sigmoid(l2.squeeze(1)), true_masks.float())
+                    #loss3 = 0.1 * criterion(masks_pred.squeeze(1), true_masks.float()) + 0.9 * loss_function(torch.sigmoid(l3.squeeze(1)), true_masks.float())
+                    #print(masks_pred.squeeze(0).size(), true_masks.size())
+                    #loss1 = loss_function(torch.sigmoid(masks_pred.squeeze(0)), true_masks.float())
+                    #loss2 = loss_function(torch.sigmoid(l2.squeeze(0)), true_masks.float())
+                    #loss3 = loss_function(torch.sigmoid(l3.squeeze(0)), true_masks.float())
+                    
+                    #DEBUG
+                    #print(masks_pred.requires_grad, l2.requires_grad, l3.requires_grad) 
+                    #loss = 0.1 * criterion(masks_pred, true_masks.float()) + 0.9*loss2# + 0.1*loss2 + 0.1*loss3
+                    
+                    assert loss.requires_grad, "Loss tensor does not require gradients."
                     epoch_loss += loss.item()
                     
                     
@@ -249,12 +289,12 @@ def train_net(net,
                     pbar.update(imgs.shape[0])
                     global_step += 1
 
-                division_step = (n_train // (1 * batch_size))
+                division_step = (n_train // (2 * batch_size))
                 if division_step > 0:
                     if global_step % division_step == 0:
                         
                         #val_dice = eval_net(net, val_loader, device)
-                        val_score = evaluate(net, val_loader, device, epoch, False)
+                        val_score = evaluate_transunet(net, val_loader, device, epoch, False)
 
                         #if isinstance(val_score['dice_score'], torch.Tensor) and val_score['dice_score'].requires_grad:
                         #    raise RuntimeError("In-place operations or tensors that require gradients are not allowed in scheduler.step().")

@@ -46,7 +46,7 @@ if __name__ == '__main__':
         data='yolo_dataset.yaml',
         epochs = epochs,
         imgsz = images_size,
-        project="TreeDetection",
+        project="CanopyMapping",
         name=f"yolo11n_seg_{images_size}"
     )
     print(train_metrics)

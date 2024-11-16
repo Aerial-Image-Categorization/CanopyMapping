@@ -8,6 +8,17 @@ from PIL import Image
 import shutil
 import cv2
 
+def desaturation(image):
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    lower_green = np.array([35, 40, 40])  #adjust needed
+    upper_green = np.array([85, 255, 255])
+    green_mask = cv2.inRange(hsv, lower_green, upper_green)
+
+    #desaturate areas outside of the green mask
+    hsv[:, :, 1] = cv2.bitwise_and(hsv[:, :, 1], green_mask)
+
+    return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+
 def shadow_boosting(image):
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     if len(image.shape) == 3:
@@ -51,7 +62,9 @@ def process(src_image_folder, src_mask_folder, dest_image_folder, dest_mask_fold
         
         
         ### image man.
-        image = NDVI(image)
+        #image = NDVI(image)
+        #image = desaturation(image)
+        #image = shadow_boosting(image)
         ###
         
         ### resize (interpolate)
@@ -63,14 +76,28 @@ def process(src_image_folder, src_mask_folder, dest_image_folder, dest_mask_fold
         
         
 if __name__ == '__main__':
-    dataset_path = '../data/2024-10-30-loc-dataset-1024'
+    #dataset_path = '../data/2024-10-30-loc-dataset-1024'
+    #dataset_path = '../data/2024-11-13-seg-dataset-1024'
+    dataset_path = '../data/2024-11-13-seg-dataset-2048'
     
     subdirs = [
-        ('aug_train','man_aug_train'),
-        ('aug_train_u10','man_aug_train_u10'),
-        ('train','man_train'),
-        ('val','man_val'),
-        ('test','man_test')
+        ('aug_train','u_aug_train'),
+        ('val','u_val'),
+        ('test','u_test')
+        #('aug_train','ndvi_aug_train'),
+        #('val','ndvi_val'),
+        #('test','ndvi_test')
+        #('aug_train','u_aug_train'),
+        #('train','u_train')
+        #('train','man_train'),
+        #('val','u_val'),
+        #('test','u_test')
+        #('u_aug_train_f10','prep_u_aug_train_f10'),
+        #('u_val_f10','prep_u_val_f10'),
+        #('u_test_f10','prep_u_test_f10')
+        #('u_aug_train_u10','sb_u_aug_train_u10'),
+        #('u_val','sb_u_val'),
+        #('u_test','sb_u_test')
     ]
 
     for subdir in tqdm(subdirs,desc='Processing folders'):

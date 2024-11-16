@@ -57,7 +57,13 @@ def filter_distorted_images(src_folder, dest_folder, radius):
 
 if __name__ == '__main__':
     img_size = 1024
-    src_folder = f'../../data/2024-11-03-seg-dataset-{img_size}/aug_train/masks'
-    dest_folder = f'../../data/2024-11-03-seg-dataset-{img_size}/aug_train_filtered/masks'
-    radius = 100
-    filter_distorted_images(src_folder, dest_folder, radius)
+    radius = 10
+    dirs = [
+        'u_aug_train',
+        'u_test',
+        'u_val'
+    ]
+    for dir in dirs:
+        src_folder = f'../data/2024-11-12-seg-dataset-{img_size}/{dir}/masks'
+        dest_folder = f'../data/2024-11-12-seg-dataset-{img_size}/{dir}_f10/masks'
+        filter_distorted_images(src_folder, dest_folder, radius)

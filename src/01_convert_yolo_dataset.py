@@ -210,15 +210,17 @@ if __name__ == '__main__':
         #'../data/2024-10-30-loc-dataset-128',
         #'../data/2024-10-30-loc-dataset-256',
         #'../data/2024-10-30-loc-dataset-384',
-        '../data/2024-10-30-loc-dataset-512',
+        #'../data/2024-10-30-loc-dataset-512',
+        #'../data/2024-11-13-seg-dataset-1024'
+        '../data/2024-10-30-loc-dataset-1024'
         #'../data/2024-10-30-loc-dataset-1024'
     ]
     
     subfolders = [
-        'aug_train',
-        'train',
-        'val',
-        'test'
+        'u_aug_train_u10',
+        #'u_train',
+        'u_val',
+        'u_test'
     ]
     
     #for subfolder in tqdm(subfolders, desc="Sets", leave=False):
@@ -246,5 +248,9 @@ if __name__ == '__main__':
             
         create_new_dataset_structure(
            base_dir = dataset,
-           new_base_dir = dataset+'_yolo_seg'
+           new_base_dir = dataset+'_yolo',
+           source_folders=['u_aug_train_u10', 'u_val', 'u_test'],
+           source_subfolders=['images', 'mask_txts'],
+           dest_folders=['images', 'labels'],
+           dest_subfolders=['train', 'val', 'test']
         )
