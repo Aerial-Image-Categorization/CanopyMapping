@@ -571,7 +571,7 @@ def show_image(path, divisor=10):
     plt.show()
     
     
-def split_SEG(tif_path, points_shp_path, poly_shp_path, output_folder, tile_size=(200, 200)):
+def split_SEG(tif_path, points_shp_path, poly_shp_path, output_folder, tile_size=(200, 200), only_closest = False):
     """
     Split .shp & .tif files using points from a point shapefile to center each split tile (200x200).
     The function cuts both TIF and polygon shapefile over the same areas centered around the points.
@@ -595,12 +595,20 @@ def split_SEG(tif_path, points_shp_path, poly_shp_path, output_folder, tile_size
         
     for idx, point in tqdm(points_gdf.iterrows(), total=points_gdf.shape[0], desc="Processing trees"):
         if isinstance(point.geometry, Point):
-            process_seg_tile(idx, None, point.geometry.x, point.geometry.y, tif_dataset, tif_transform, poly_shp_path, tifs_path_folder, shps_path_folder, tile_size, pixel_width, pixel_height)
+            if only_closest:
+                process_seg_tile(idx, None, point.geometry.x, point.geometry.y, tif_dataset, tif_transform, poly_shp_path, tifs_path_folder, shps_path_folder, tile_size, pixel_width, pixel_height)
+            else:
+                process_seg_tile_with_all_polygons(idx, None, point.geometry.x, point.geometry.y, tif_dataset, tif_transform, poly_shp_path, tifs_path_folder, shps_path_folder, tile_size, pixel_width, pixel_height)
+
             out_dict[idx] = point.geometry.x, point.geometry.y
         elif isinstance(point.geometry, MultiPoint):
             for sub_idx, sub_point in enumerate(point.geometry.geoms):
                 out_dict[idx] = sub_point.x, sub_point.y
-                process_seg_tile(idx, sub_idx, sub_point.x, sub_point.y, tif_dataset, tif_transform, poly_shp_path, tifs_path_folder, shps_path_folder, tile_size, pixel_width, pixel_height)
+                if only_closest:
+                    process_seg_tile(idx, sub_idx, sub_point.x, sub_point.y, tif_dataset, tif_transform, poly_shp_path, tifs_path_folder, shps_path_folder, tile_size, pixel_width, pixel_height)
+                else:
+                    process_seg_tile_with_all_polygons(idx, sub_idx, sub_point.x, sub_point.y, tif_dataset, tif_transform, poly_shp_path, tifs_path_folder, shps_path_folder, tile_size, pixel_width, pixel_height)
+
         else:
             logging.warning(f'Unsupported geometry type {type(point.geometry)} at index {idx}')
             continue
@@ -672,6 +680,66 @@ def process_seg_tile(idx, sub_idx, center_x, center_y, tif_dataset, tif_transfor
             srcWin=[offset_x, offset_y, tile_size[0], tile_size[1]]
         )
         logging.info(f'Saved tile TIF for point {idx} (sub-point {sub_idx})')
+        
+import os
+import logging
+import geopandas as gpd
+from shapely.geometry import box, Point
+from osgeo import gdal
+
+def process_seg_tile_with_all_polygons(idx, sub_idx, center_x, center_y, tif_dataset, tif_transform, poly_shp_path, tifs_path_folder, shps_path_folder, tile_size, pixel_width, pixel_height):
+    """
+    Helper function to process a single tile around a point, saving all polygons within the bounding box.
+    """
+    half_width = (tile_size[0] // 2) * pixel_width
+    half_height = (tile_size[1] // 2) * pixel_height
+
+    minx, miny = center_x - half_width, center_y - half_height
+    maxx, maxy = center_x + half_width, center_y + half_height
+
+    tile_bbox = box(minx, miny, maxx, maxy)
+
+    offset_x = int((minx - tif_transform[0]) / pixel_width)
+    offset_y = int((tif_transform[3] - maxy) / pixel_height)
+
+    if poly_shp_path:
+        # Load polygons within the bounding box
+        tile_gdf = gpd.read_file(poly_shp_path, mask=tile_bbox)
+
+        if not tile_gdf.empty:
+            # Save all polygons within the bounding box
+            if sub_idx is not None and sub_idx != 0:
+                tile_shp_path = os.path.join(shps_path_folder, f"tile_{idx}_{sub_idx}.shp")
+            else:
+                tile_shp_path = os.path.join(shps_path_folder, f"tile_{idx}.shp")
+            tile_gdf.to_file(tile_shp_path)
+            logging.info(f'Saved tile shapefile for point {idx} (sub-point {sub_idx}) at {tile_shp_path}')
+
+            if sub_idx is not None and sub_idx != 0:
+                tif_output_path = os.path.join(tifs_path_folder, f"tile_{idx}_{sub_idx}.tif")
+            else:
+                tif_output_path = os.path.join(tifs_path_folder, f"tile_{idx}.tif")
+            
+            gdal.Translate(
+                tif_output_path,
+                tif_dataset,
+                srcWin=[offset_x, offset_y, tile_size[0], tile_size[1]]
+            )
+            logging.info(f'Saved tile TIF for point {idx} (sub-point {sub_idx})')
+    else:
+        # Process only the TIF
+        if sub_idx is not None and sub_idx != 0:
+            tif_output_path = os.path.join(tifs_path_folder, f"tile_{idx}_{sub_idx}.tif")
+        else:
+            tif_output_path = os.path.join(tifs_path_folder, f"tile_{idx}.tif")
+        
+        gdal.Translate(
+            tif_output_path,
+            tif_dataset,
+            srcWin=[offset_x, offset_y, tile_size[0], tile_size[1]]
+        )
+        logging.info(f'Saved tile TIF for point {idx} (sub-point {sub_idx})')
+
 
 
 def convert_SHPtoPNG_SEG(tif_path, shp_path, png_path, tile_size=(250, 250), bg_color='black', fg_color='white'):
