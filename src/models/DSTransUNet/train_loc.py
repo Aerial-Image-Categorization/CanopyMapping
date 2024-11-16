@@ -107,10 +107,10 @@ def cal(loader):
 def structure_loss_with_0(pred, mask):
     #weit = 1 + 5*torch.abs(F.avg_pool2d(mask, kernel_size=31, stride=1, padding=15) - mask)
     
-    
+    #from border to center weights
     weit = 1 + F.avg_pool2d(mask, kernel_size=13, stride=1, padding=6)
     weit = torch.where(weit < 1.2, torch.tensor(1.0, dtype=weit.dtype, device=weit.device), weit/1.2)
-    
+    #
     
     wbce = F.binary_cross_entropy_with_logits(pred, mask, reduce='none')
     wbce = (weit*wbce).sum(dim=(2, 3)) / weit.sum(dim=(2, 3))
