@@ -204,8 +204,8 @@ def train_net_seg(
     name=f'seg-unet-centroid-{img_size}'
     dir_checkpoint = Path(f'./checkpoints_{name}_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")}')
     
-    #if img_size > 512:
-    #    img_size = 512
+    if img_size > 512:
+        img_size = 512
     
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -232,7 +232,7 @@ def train_net_seg(
     val_loader = DataLoader(valid_set, shuffle=True, drop_last=False, **val_loader_args)
 
     # (Initialize logging)
-    experiment = wandb.init(project='TreeDetection', resume='allow', anonymous='must',name=name, magic=True)
+    experiment = wandb.init(project='CanopyMapping', resume='allow', anonymous='must',name=name, magic=True)
     experiment.config.update(
         dict(epochs=epochs, batch_size=batch_size, learning_rate=learning_rate,
              val_percent=val_percent, save_checkpoint=save_checkpoint, img_scale=img_scale, amp=amp)
@@ -353,8 +353,8 @@ def train_net_seg(
                                 'Segmentation metrics': {
                                     'Dice': val_dice, #val_score['dice_score'],
                                     'IoU':val_score['iou'],
-                                    'Weighted IoU': val_score['w_iou'],
-                                    'Weighted Dice': val_score['w_dice']
+                                    #'Weighted IoU': val_score['w_iou'],
+                                    #'Weighted Dice': val_score['w_dice']
                                 },
                                 #'validation Dice': val_score['dice_score'],
                                 #'validation IoU': val_score['iou'],
