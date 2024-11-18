@@ -37,6 +37,16 @@ def NDVI(image):
 
     return cv2.normalize(ndvi, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8) # Normalize NDVI to [0, 255] for better visibility
 
+def VARI(image):
+    blue = image[:, :, 0].astype(float)
+    green = image[:, :, 1].astype(float)
+    red = image[:, :, 2].astype(float)
+
+    # Calculate NDVI
+    ndvi = (green - red) / (green + red - blue + 1e-5)  # Adding small value to avoid division by zero
+
+    return cv2.normalize(ndvi, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+
 def interpolate(image, mask, size = (512, 512)):
     image_resized = cv2.resize(image, size, interpolation=cv2.INTER_CUBIC)
     mask_resized = cv2.resize(mask, size, interpolation=cv2.INTER_NEAREST)
@@ -62,6 +72,7 @@ def process(src_image_folder, src_mask_folder, dest_image_folder, dest_mask_fold
         
         
         ### image man.
+        #image = VARI(image)
         #image = NDVI(image)
         #image = desaturation(image)
         #image = shadow_boosting(image)
@@ -81,9 +92,13 @@ if __name__ == '__main__':
     dataset_path = '../data/2024-11-13-seg-dataset-2048'
     
     subdirs = [
-        ('aug_train','u_aug_train'),
-        ('val','u_val'),
-        ('test','u_test')
+        #('u_aug_train','u_aug_train_vari'),
+        #('u_val','u_val_vari'),
+        #('u_test','u_test_vari')
+        ('train','u_train')
+        #('aug_train','u_aug_train'),
+        #('val','u_val'),
+        #('test','u_test')
         #('aug_train','ndvi_aug_train'),
         #('val','ndvi_val'),
         #('test','ndvi_test')
