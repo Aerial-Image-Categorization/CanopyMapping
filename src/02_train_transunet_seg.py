@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 
 #from models import centroid_UNet as UNet
-from models.DSTransUNet.train_loc import train_net
+from models.DSTransUNet.train_seg import train_net
 from models.DSTransUNet.lib.DS_TransUNet import UNet
         
 def get_args():
@@ -42,11 +42,11 @@ if __name__ == '__main__':
     #train_mask_dir = f'../data/2024-10-30-loc-dataset-{args.size}/u_aug_train_u10/masks/'
     #val_img_dir = f'../data/2024-10-30-loc-dataset-{args.size}/u_val/images/'
     #val_mask_dir = f'../data/2024-10-30-loc-dataset-{args.size}/u_val/masks/'
-    train_img_dir = f'../data/2024-10-30-loc-dataset-{args.size}/u_aug_train_u10'
-    train_mask_dir = f'../data/2024-10-30-loc-dataset-{args.size}/u_aug_train_u10/masks/'
-    val_img_dir = f'../data/2024-10-30-loc-dataset-{args.size}/u_val'
-    val_mask_dir = f'../data/2024-10-30-loc-dataset-{args.size}/u_val/masks/'
-    dir_checkpoint = f'ds_transunet_checkpoints_{args.size}_u10_new_loss/'
+    train_img_dir = f'../data/2024-11-13-seg-dataset-{args.size}/u_train'
+    train_mask_dir = f'../data/2024-11-13-seg-dataset-{args.size}/u_aug_train/masks/'
+    val_img_dir = f'../data/2024-11-13-seg-dataset-{args.size}/u_val'
+    val_mask_dir = f'../data/2024-11-13-seg-dataset-{args.size}/u_val/masks/'
+    dir_checkpoint = f'ds_transunet_seg_checkpoints_{args.size}/'
     
     
     
