@@ -51,6 +51,31 @@ class DecoderBlock(nn.Module):
         x = torch.cat((x, skip_connection), dim=1)
         x = self.conv(x)
         return x
+    
+class DecoderBlock(nn.Module):
+    """Decoder block with ConvTranspose2d or Upsampling"""
+    def __init__(self, in_channels, out_channels, bilinear=False):
+        super(DecoderBlock, self).__init__()
+        self.bilinear = bilinear
+        
+        if bilinear:
+            self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+            self.conv = DoubleConv(in_channels+out_channels, out_channels)
+        else:
+            self.upsample = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2)
+            self.conv = DoubleConv(out_channels + in_channels // 2, out_channels) # Adjust input channels for concatenation
+
+    def forward(self, x, skip_connection):
+        x = self.upsample(x)
+        
+        if x.shape != skip_connection.shape:
+            diffY = skip_connection.size()[2] - x.size()[2]
+            diffX = skip_connection.size()[3] - x.size()[3]
+            x = F.pad(x, [diffX // 2, diffX - diffX // 2, diffY // 2, diffY - diffY // 2])
+        
+        x = torch.cat((x, skip_connection), dim=1)
+        x = self.conv(x)
+        return x
 
 class model(nn.Module):
     def __init__(self, n_channels, n_classes, dropout_prob=0.2):
@@ -70,10 +95,10 @@ class model(nn.Module):
         self.bottleneck = DoubleConv(256, 512)
 
         # Decoder
-        self.dec1 = DecoderBlock(512, 256)
-        self.dec2 = DecoderBlock(256, 128)
-        self.dec3 = DecoderBlock(128, 64)
-        self.dec4 = DecoderBlock(64, 32)
+        self.dec1 = DecoderBlock(512, 256, self.bilinear)
+        self.dec2 = DecoderBlock(256, 128, self.bilinear)
+        self.dec3 = DecoderBlock(128, 64, self.bilinear)
+        self.dec4 = DecoderBlock(64, 32, self.bilinear)
 
         self.final_conv = nn.Conv2d(32, n_classes, kernel_size=1)
 
