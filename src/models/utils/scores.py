@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from torch import Tensor
+import torch.nn.functional as F
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from scipy.ndimage import center_of_mass, label
 import torch
@@ -10,6 +11,39 @@ from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_sc
 
 
 from scipy.ndimage import label, distance_transform_edt
+
+def weighted_iou_opt(pred, target, reduce_batch_first: bool = False, epsilon=1e-6):
+    assert pred.size() == target.size()
+    assert pred.dim() == 3 or not reduce_batch_first
+
+    sum_dim = (-1, -2) if pred.dim() == 2 or not reduce_batch_first else (-1, -2, -3)
+    
+    #from border to center weights
+    weit = 1 + F.avg_pool2d(target, kernel_size=13, stride=1, padding=6)
+    weit = torch.where(weit < 1.2, torch.tensor(1.0, dtype=weit.dtype, device=weit.device), weit/1.2)
+
+    #pred = torch.sigmoid(pred)
+    inter = (pred * target * weit).sum(dim=sum_dim)
+    union = (pred*weit).sum(dim=sum_dim) + (target*weit).sum(dim=sum_dim) - inter
+    wiou = (inter + epsilon) / (union  + epsilon)
+    return wiou.mean()
+
+
+def weighted_dice_opt(pred, target, reduce_batch_first: bool = False, epsilon=1e-6):
+    assert pred.size() == target.size()
+    assert pred.dim() == 3 or not reduce_batch_first
+
+    sum_dim = (-1, -2) if pred.dim() == 2 or not reduce_batch_first else (-1, -2, -3)
+    
+    #from border to center weights
+    weit = 1 + F.avg_pool2d(target, kernel_size=13, stride=1, padding=6)
+    weit = torch.where(weit < 1.2, torch.tensor(1.0, dtype=weit.dtype, device=weit.device), weit/1.2)
+
+    #pred = torch.sigmoid(pred)
+    inter = (pred * target * weit).sum(dim=sum_dim)
+    union = (pred*weit).sum(dim=sum_dim) + (target*weit).sum(dim=sum_dim)
+    dice = (2 * inter + epsilon) / (union + epsilon)
+    return dice.mean()
 
 def get_center_weight_map(mask, kernel_size=31, sigma=10):
     """
@@ -68,6 +102,7 @@ def weighted_dice(pred, target, reduce_batch_first: bool = False,  epsilon=1e-6)
     assert pred.dim() == 3 or not reduce_batch_first
 
     sum_dim = (-1, -2) if pred.dim() == 2 or not reduce_batch_first else (-1, -2, -3)
+    
     #print(target.size(),target.dim(), np.unique(target.cpu().numpy()))
     center_weight_map = get_center_weight_map(target.unsqueeze(0).unsqueeze(0), 50, 10) #torch.ones_like(target.unsqueeze(0).unsqueeze(0), dtype=torch.float32) 
     center_weight_map+=epsilon
@@ -96,6 +131,7 @@ def weighted_dice(pred, target, reduce_batch_first: bool = False,  epsilon=1e-6)
 def weighted_iou(pred, target, reduce_batch_first: bool = False,  epsilon=1e-6):
     assert pred.size() == target.size()
     assert pred.dim() == 3 or not reduce_batch_first
+    
 
     sum_dim = (-1, -2) if pred.dim() == 2 or not reduce_batch_first else (-1, -2, -3)
     
@@ -129,7 +165,7 @@ def dice(input: Tensor, target: Tensor, reduce_batch_first: bool = False, epsilo
     assert input.dim() == 3 or not reduce_batch_first
 
     sum_dim = (-1, -2) if input.dim() == 2 or not reduce_batch_first else (-1, -2, -3)
-
+    
     inter = 2 * (input * target).sum(dim=sum_dim)
     union = input.sum(dim=sum_dim) + target.sum(dim=sum_dim)
     #sets_sum = torch.where(sets_sum == 0, inter, sets_sum)
@@ -141,8 +177,9 @@ def iou(input, target, reduce_batch_first: bool = False, epsilon=1e-6):
     assert input.size() == target.size(), "Input and target must be the same size."
     assert input.dim() == 3 or not reduce_batch_first
     
+    
     sum_dim = (-1, -2) if input.dim() == 2 or not reduce_batch_first else (-1, -2, -3)
-
+    
     intersection = (input * target).sum(dim=sum_dim)  # Shape: [batch_size]
     union = input.sum(dim=sum_dim) + target.sum(dim=sum_dim) - intersection  # Shape: [batch_size]
 
@@ -159,6 +196,11 @@ def dice_loss(input: Tensor, target: Tensor, multiclass: bool = False):
     # Dice loss (objective to minimize) between 0 and 1
     fn = multiclass_dice_coeff if multiclass else dice
     return 1 - fn(input, target, reduce_batch_first=True)
+
+def weighted_dice_loss(pred, target, reduce_batch_first: bool = False, epsilon=1e-6):
+    if target.sum() == 0:
+        return (pred ** 2).mean()  # Penalize the prediction if it's not close to zero
+    return 1 - weighted_dice_opt(pred, target, reduce_batch_first, epsilon=1e-6)
 
 def iou_loss(input: Tensor, target: Tensor, multiclass: bool = False):
     # Dice loss (objective to minimize) between 0 and 1
