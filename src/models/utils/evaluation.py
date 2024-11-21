@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from tqdm import tqdm
 import numpy as np
 
-from .scores import dice, weighted_dice, iou, weighted_iou, objectwise_classification_metrics
+from .scores import dice, weighted_dice, iou, weighted_iou, objectwise_classification_metrics, weighted_dice_opt, weighted_iou_opt
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
 
@@ -76,9 +76,11 @@ def evaluate(net, dataloader, device, epoch, amp):
                 #print(mask_true.shape,mask_pred.shape)
                 dice_score.append(dice(mask_pred.squeeze(), mask_true.squeeze(), reduce_batch_first=False))
                 
-                total_weighted_dice_score.append(weighted_dice(mask_pred.squeeze(), mask_true.squeeze()))
-                total_weighted_iou_score.append(weighted_iou(mask_pred.squeeze(), mask_true.squeeze()))
-
+                #total_weighted_dice_score.append(weighted_dice(mask_pred.squeeze(), mask_true.squeeze()))
+                #total_weighted_iou_score.append(weighted_iou(mask_pred.squeeze(), mask_true.squeeze()))
+                #print(mask_true.size(), mask_pred.size())
+                total_weighted_dice_score.append(weighted_dice_opt(mask_pred.squeeze(1), mask_true.float()))
+                total_weighted_iou_score.append(weighted_iou_opt(mask_pred.squeeze(1), mask_true.float()))
                 # 'accuracy'
                 # 'precision'
                 # 'recall'
