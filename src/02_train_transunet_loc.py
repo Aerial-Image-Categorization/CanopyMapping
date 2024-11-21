@@ -46,14 +46,15 @@ if __name__ == '__main__':
     train_mask_dir = f'../data/2024-10-30-loc-dataset-{args.size}/u_aug_train_u10/masks/'
     val_img_dir = f'../data/2024-10-30-loc-dataset-{args.size}/u_val'
     val_mask_dir = f'../data/2024-10-30-loc-dataset-{args.size}/u_val/masks/'
-    dir_checkpoint = f'ds_transunet_checkpoints_{args.size}_u10_new_loss_tversky_rmsprop/'
+    dir_checkpoint = f'ds_transunet_checkpoints_{args.size}_u10_new_loss/'
     
     
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info(f'Using device {device}')
 
-    net = UNet(128, 1)
+    net = UNet(384, 1)
+    #net = UNet(64, 1)
     net = nn.DataParallel(net, device_ids=[0])
     net = net.to(device)
 
@@ -72,7 +73,7 @@ if __name__ == '__main__':
                   dir_checkpoint = dir_checkpoint,
                   epochs=args.epochs,
                   batch_size=args.batchsize,
-                  lr=args.lr,
+                  lr=1e-3, #args.lr,
                   device=device,
                   img_size=512#args.size#512 ## TODO !!! args.size
                   
