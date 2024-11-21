@@ -37,7 +37,7 @@ import matplotlib.pyplot as plt
 import wandb
 
 from ..utils.losses import TreeSpotLocalizationLoss
-
+from ..utils.scores import dice_loss
 
 def conf_matrix(
     TP,
@@ -219,9 +219,9 @@ def train_net(net,
     #optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=1e-4)
     #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, epochs//5, lr/10)
     #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, epochs, lr/10, last_epoch=-1)
-
-    optimizer = optim.RMSprop(net.parameters(),
-                              lr=lr, weight_decay=1e-4, momentum=0.9, foreach=True)
+    optimizer = optim.Adam(net.parameters(), lr=lr, weight_decay=1e-4)
+    #optimizer = optim.RMSprop(net.parameters(),
+    #                          lr=lr, weight_decay=1e-4, momentum=0.9, foreach=True)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=5)  # goal: maximize Dice score
     if n_class > 1:
         criterion = nn.CrossEntropyLoss()
@@ -263,11 +263,14 @@ def train_net(net,
                 
                     masks_pred, l2, l3 = net(imgs)
                     #masks_pred = (F.sigmoid(masks_pred) > 0.5).float()
+                    #l2 = (F.sigmoid(l2) > 0.5).float()
+                    #l3 = (F.sigmoid(l3) > 0.5).float()
                     ##masks_pred = masks_pred.squeeze(1)
-                    true_masks = true_masks.unsqueeze(0)
-                    loss1 = structure_loss_with_0_no_weigths(masks_pred, true_masks)
-                    loss2 = structure_loss_with_0_no_weigths(l2, true_masks)
-                    loss3 = structure_loss_with_0_no_weigths(l3, true_masks)
+                    #true_masks = true_masks.unsqueeze(0)
+                    #print(masks_pred.size(), true_masks.size())
+                    loss1 = dice_loss(masks_pred.squeeze(1), true_masks)#structure_loss_with_0_no_weigths(masks_pred, true_masks)
+                    loss2 = dice_loss(l2.squeeze(1), true_masks)#structure_loss_with_0_no_weigths(l2, true_masks)
+                    loss3 = dice_loss(l3.squeeze(1), true_masks)#structure_loss_with_0_no_weigths(l3, true_masks)
                     #loss = 0.6*loss1 + 0.2*loss2 + 0.2*loss3# + loss_function(torch.sigmoid(masks_pred.squeeze(0)), true_masks.float())
                     loss = 0.6*loss1 + 0.2*loss2 + 0.2*loss3# + 0.2*loss_function(torch.sigmoid(masks_pred.squeeze(0)), true_masks.float())
                     

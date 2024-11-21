@@ -5,7 +5,16 @@ from scipy.ndimage import center_of_mass, label
 import numpy as np
 
 class TreeSpotLocalizationLoss(nn.Module):
-    def __init__(self, w_dice_weight=0.6, tversky_weight=0.2, soft_l2_weight=0.2, tversky_alpha=0.5):
+    def __init__(
+        self,
+        w_dice_weight=0.6,
+        tversky_weight=0.2,
+        soft_l2_weight=0.2,
+        tversky_alpha=0.5,
+        focal_weight=0.2,
+        focal_alpha=1,
+        focal_gamma=2
+        ):
         """
         Custom loss for tree spot localization in aerial images.
 
@@ -18,9 +27,16 @@ class TreeSpotLocalizationLoss(nn.Module):
         self.tversky_weight = tversky_weight
         self.tversky_alpha = tversky_alpha
         self.soft_l2_weight = soft_l2_weight
+        self.focal_weight = focal_weight
+        self.focal_alpha = focal_alpha
+        self.focal_gamma = focal_gamma
+
 
     def dice_loss(self, pred, target, smooth=1e-6):
         """Calculate Dice Loss for binary masks."""
+        if target.sum() == 0:
+            loss = (pred ** 2).mean()
+            return loss
         pred = torch.sigmoid(pred)
         intersection = (pred * target).sum()
         union = pred.sum() + target.sum()
@@ -109,6 +125,22 @@ class TreeSpotLocalizationLoss(nn.Module):
 
         return loss
 
+    def weighted_dice_loss_opt(self, pred, target, epsilon=1e-6):
+        assert pred.size() == target.size()
+        sum_dim = (-1, -2)
+        if target.sum() == 0:
+            loss = (pred ** 2).mean()
+            return loss
+        #from border to center weights
+        weit = 1 + F.avg_pool2d(target, kernel_size=13, stride=1, padding=6)
+        weit = torch.where(weit < 1.2, torch.tensor(1.0, dtype=weit.dtype, device=weit.device), weit/1.2)
+
+        #pred = torch.sigmoid(pred)
+        inter = (pred * target * weit).sum(dim=sum_dim)
+        union = (pred*weit).sum(dim=sum_dim) + (target*weit).sum(dim=sum_dim)
+        dice = (2 * inter + epsilon) / (union + epsilon)
+        return 1-dice.mean()
+    
     def tversky_loss(self, pred, target, alpha=0.7, smooth=1e-6):
         """Calculate Tversky Loss for binary masks."""
         pred = torch.sigmoid(pred)
@@ -120,7 +152,15 @@ class TreeSpotLocalizationLoss(nn.Module):
 
         #calc. Tversky coef.
         tversky_coeff = (TP + smooth) / (TP + alpha * FP + (1 - alpha) * FN + smooth)
-        return 1 - tversky_coeff  # Returning Tversky loss
+        return 1 - tversky_coeff
+    
+    def focal_loss(self, pred, target):
+        """Calculate Focal Loss for binary masks."""
+        pred = torch.sigmoid(pred)
+        bce_loss = F.binary_cross_entropy(pred, target, reduction='none')
+        pt = torch.exp(-bce_loss)
+        focal_loss = self.focal_alpha * (1 - pt) ** self.focal_gamma * bce_loss
+        return focal_loss.mean()
     
     def forward(self, predictions, target):
         """
@@ -131,13 +171,14 @@ class TreeSpotLocalizationLoss(nn.Module):
             target (Tensor): Ground truth mask with white spots for trees (B, 1, H, W).
         """
         
-        #w_dice_loss = self.w_dice_weight * self.weighted_dice_loss(predictions,target) if self.w_dice_weight !=0 else 0
+        #w_dice_loss = self.w_dice_weight * self.weighted_dice_loss_opt(predictions,target) if self.w_dice_weight !=0 else 0
         w_dice_loss = self.w_dice_weight * self.dice_loss(predictions,target) if self.w_dice_weight !=0 else 0
         tversky_loss = self.tversky_weight * self.tversky_loss(predictions, target, alpha=self.tversky_alpha) if self.tversky_weight != 0 else 0
         soft_l2_loss = soft_l2_loss * self.soft_l2_loss(predictions, target) if self.soft_l2_weight != 0 else 0
+        focal_loss = self.focal_weight * self.focal_loss(predictions, target) if self.focal_weight != 0 else 0
 
         #weight
-        total_loss = w_dice_loss + tversky_loss + soft_l2_loss
+        total_loss = w_dice_loss + tversky_loss + soft_l2_loss + focal_loss
         
         return total_loss
 
