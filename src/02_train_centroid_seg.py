@@ -20,12 +20,16 @@ def get_args():
 if __name__ == '__main__':
     args = get_args()
     img_size = args.size
-    train_set_path = f'../data/2024-10-30-loc-dataset-{img_size}/aug_train_u10'
-    valid_set_path = f'../data/2024-10-30-loc-dataset-{img_size}/val'
+    #train_set_path = f'../data/2024-10-30-loc-dataset-{img_size}/aug_train_u10'
+    #valid_set_path = f'../data/2024-10-30-loc-dataset-{img_size}/val'
 
+    train_set_path = f'../data/2024-11-13-seg-dataset-{img_size}/u_aug_train'
+    valid_set_path = f'../data/2024-11-13-seg-dataset-{img_size}/u_val'
+    
+    
     epochs = args.epochs #25
     batch_size = args.batchsize #6
-    lr = 1e-5
+    lr = 1e-8
     scale = 1
     val = 0.1
     amp = False
