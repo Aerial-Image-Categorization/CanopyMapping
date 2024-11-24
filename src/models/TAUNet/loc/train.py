@@ -416,7 +416,7 @@ def train_net_loss(
     train_loader_args = dict(batch_size=batch_size, num_workers=os.cpu_count(), pin_memory=True)
     val_loader_args = dict(batch_size=1, num_workers=os.cpu_count(), pin_memory=True)
     train_loader = DataLoader(train_set, shuffle=True, **train_loader_args)
-    val_loader = DataLoader(valid_set, shuffle=False, drop_last=False, **val_loader_args)
+    val_loader = DataLoader(valid_set, shuffle=True, drop_last=False, **val_loader_args)
 
     # (Initialize logging)
     experiment = wandb.init(project='CanopyMapping', resume='allow', anonymous='must',name=name, magic=True)
@@ -440,6 +440,7 @@ def train_net_loss(
     # 4. Set up the optimizer, the loss, the learning rate scheduler and the loss scaling for AMP
     optimizer = optim.RMSprop(model.parameters(),
                               lr=learning_rate, weight_decay=weight_decay, momentum=momentum, foreach=True)
+    #optimizer = optim.Adam(model.parameters(),lr=learning_rate, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=3)  # goal: maximize Dice score
     grad_scaler = torch.cuda.amp.GradScaler(enabled=amp)
     criterion = nn.CrossEntropyLoss() if model.n_classes > 1 else nn.BCEWithLogitsLoss()
@@ -447,9 +448,16 @@ def train_net_loss(
     best_dice = 0
     early_stopping = EarlyStopping(patience=15, min_delta=0.001, mode="max")
     
-    loss_function = TreeSpotLocalizationLoss(w_dice_weight=0.8, tversky_weight=0.2, soft_l2_weight=0, tversky_alpha=0.7)
-
-    
+    loss_function = TreeSpotLocalizationLoss(
+        w_dice_weight=0.7,
+        tversky_weight=0,
+        soft_l2_weight=0,
+        focal_weight=0,
+        focal_tversky_weight=0.3,
+        focal_tversky_alpha=0.6,
+        focal_tversky_beta=0.4,
+        focal_tversky_gamma=4/3
+    )
     # 5. Begin training
     for epoch in range(epochs):
         model.train()
