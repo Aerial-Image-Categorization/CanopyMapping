@@ -8,7 +8,6 @@ src/wandb/
 src/SEG_SPLIT_TEST/
 src/models/.ipynb_checkpoints
 src/models/checkpoints/
-src/legacy/
 src/checkpoints
 .*
 *.log
