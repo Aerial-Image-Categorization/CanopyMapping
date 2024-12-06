@@ -36,50 +36,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import wandb
 
-from ..utils.losses import TreeSpotLocalizationLoss
+from ..utils.losses import PolygonCanopyLoss
 from ..utils.scores import dice_loss
-
-def conf_matrix(
-    TP,
-    FP,
-    FN,
-    TN,
-    class_labels = ["Negative", "Positive"],
-    xlabel = "Predicted Label",
-    ylabel = "True Label",
-    title = 'Binary Confusion Matrix'
-):
-    cm = np.array([[TN, FP],
-                   [FN, TP]])
-    fig, ax = plt.subplots(figsize=(6, 6))
-    cax = ax.matshow(cm, cmap="Blues")
-
-    for (i, j), val in np.ndenumerate(cm):
-        ax.text(j, i, f"{val}", ha="center", va="center", color="black")
-
-    plt.colorbar(cax)
-
-    ax.set_xticks([0, 1])
-    ax.set_yticks([0, 1])
-    ax.set_xticklabels(class_labels)
-    ax.set_yticklabels(class_labels)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    plt.title(title)
-    return fig
-
-def precision_recall_curve(precision, recall):
-    fig, ax = plt.subplots(figsize=(8, 6))
-    ax.plot(recall, precision, marker='.', label='PR Curve')
-    ax.set_xlabel('Recall')
-    ax.set_ylabel('Precision')
-    ax.title('Precision-Recall Curve')
-    ax.legend()
-    ax.grid(True)
-
-    return fig
-
-
 
 def get_logger(filename, verbosity=1, name=None):
     level_dict = {0: logging.DEBUG, 1: logging.INFO, 2: logging.WARNING}
@@ -152,14 +110,14 @@ def adjust_lr(optimizer, init_lr, epoch, decay_rate=0.1, decay_epoch=30):
         param_group['lr'] *= decay
 
 def structure_loss_with_0_no_weigths(pred, mask):
-    #wbce = F.binary_cross_entropy_with_logits(pred, mask, reduce='none')
+    wbce = F.binary_cross_entropy_with_logits(pred, mask, reduce='none')
 
     pred = torch.sigmoid(pred)
     inter = (pred * mask).sum(dim=(2, 3))
     union = (pred + mask).sum(dim=(2, 3))
     wiou = 1 - (inter + 1)/(union - inter+1)
-    #return (wbce + wiou).mean()
-    return wiou.mean()
+    return (wbce + wiou).mean()
+    #return wiou.mean()
 
 def train_net(net,
               train_img_dir,
@@ -216,10 +174,10 @@ def train_net(net,
         Images size:  {img_size}
     ''')
 
-    #optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=1e-4)
-    #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, epochs//5, lr/10)
+    optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=1e-4)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, epochs//5, lr/10)
     #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, epochs, lr/10, last_epoch=-1)
-    optimizer = optim.Adam(net.parameters(), lr=lr, weight_decay=1e-4)
+    #optimizer = optim.Adam(net.parameters(), lr=lr, weight_decay=1e-4)
     #optimizer = optim.RMSprop(net.parameters(),
     #                          lr=lr, weight_decay=1e-4, momentum=0.9, foreach=True)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=5)  # goal: maximize Dice score
@@ -236,7 +194,15 @@ def train_net(net,
     
     early_stopping = EarlyStopping(patience=10, min_delta=0.001, mode="max")
     #loss_function = TreeSpotLocalizationLoss(w_dice_weight=0, tversky_weight=1.0, soft_l2_weight=0, tversky_alpha=0.3)
-
+    loss_function = PolygonCanopyLoss(
+        dice_weight=0.5,
+        ssim_weight=0.0,
+        bce_weight=0.1,
+        diversity_weight=0.0,
+        focal_tversky_weight = 0.4,
+        focal_tversky_alpha = 0.2,
+        focal_tversky_gamma = 1.25
+    )
     for epoch in range(epochs):
         net.train()
 
@@ -262,18 +228,31 @@ def train_net(net,
                     #dice_score.append(dice(mask_pred.squeeze(), mask_true.squeeze(), reduce_batch_first=False))
                 
                     masks_pred, l2, l3 = net(imgs)
+                    #true_masks = true_masks.unsqueeze(1)
                     #masks_pred = (F.sigmoid(masks_pred) > 0.5).float()
+                    masks_pred = masks_pred.squeeze(1)
+                    
                     #l2 = (F.sigmoid(l2) > 0.5).float()
                     #l3 = (F.sigmoid(l3) > 0.5).float()
                     ##masks_pred = masks_pred.squeeze(1)
                     #true_masks = true_masks.unsqueeze(0)
                     #print(masks_pred.size(), true_masks.size())
-                    loss1 = dice_loss(masks_pred.squeeze(1), true_masks)#structure_loss_with_0_no_weigths(masks_pred, true_masks)
-                    loss2 = dice_loss(l2.squeeze(1), true_masks)#structure_loss_with_0_no_weigths(l2, true_masks)
-                    loss3 = dice_loss(l3.squeeze(1), true_masks)#structure_loss_with_0_no_weigths(l3, true_masks)
-                    #loss = 0.6*loss1 + 0.2*loss2 + 0.2*loss3# + loss_function(torch.sigmoid(masks_pred.squeeze(0)), true_masks.float())
-                    loss = 0.6*loss1 + 0.2*loss2 + 0.2*loss3# + 0.2*loss_function(torch.sigmoid(masks_pred.squeeze(0)), true_masks.float())
-                    
+                    #loss1 = dice_loss(masks_pred.squeeze(1), true_masks)#structure_loss_with_0_no_weigths(masks_pred, true_masks)
+                    #loss2 = dice_loss(l2.squeeze(1), true_masks)#structure_loss_with_0_no_weigths(l2, true_masks)
+                    #loss3 = dice_loss(l3.squeeze(1), true_masks)#structure_loss_with_0_no_weigths(l3, true_masks)
+                    ##loss = 0.6*loss1 + 0.2*loss2 + 0.2*loss3# + loss_function(torch.sigmoid(masks_pred.squeeze(0)), true_masks.float())
+                    #loss = 0.6*loss1 + 0.2*loss2 + 0.2*loss3# + 0.2*loss_function(torch.sigmoid(masks_pred.squeeze(0)), true_masks.float())
+                    print(masks_pred.size(), true_masks.size())
+                    loss1 = loss_function(masks_pred, true_masks.float())#weighted_dice_loss(torch.sigmoid(masks_pred), true_masks.float())
+                    loss2 = loss_function(l2.squeeze(1), true_masks.float())#structure_loss_with_p(l2, true_masks)
+                    loss3 = loss_function(l3.squeeze(1), true_masks.float())#structure_loss_with_p(l3, true_masks)
+                    #print(f"Shape of pred: {true_masks.shape}")
+                    #print(f"Shape of mask: {masks_pred.shape}")
+                    #loss1 = structure_loss_with_0_no_weigths(masks_pred, true_masks)
+                    #loss2 = structure_loss_with_0_no_weigths(l2, true_masks)
+                    #loss3 = structure_loss_with_0_no_weigths(l3, true_masks)
+                    loss = 0.4*loss1 + 0.3*loss2 + 0.3*loss3
+
                     #loss1 = 0.1 * criterion(masks_pred.squeeze(1), true_masks.float()) + 0.9 * loss_function(torch.sigmoid(masks_pred.squeeze(1)), true_masks.float())
                     #loss2 = 0.1 * criterion(masks_pred.squeeze(1), true_masks.float()) + 0.9 * loss_function(torch.sigmoid(l2.squeeze(1)), true_masks.float())
                     #loss3 = 0.1 * criterion(masks_pred.squeeze(1), true_masks.float()) + 0.9 * loss_function(torch.sigmoid(l3.squeeze(1)), true_masks.float())

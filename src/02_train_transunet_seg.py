@@ -53,7 +53,8 @@ if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info(f'Using device {device}')
 
-    net = UNet(128, 1)
+    #net = UNet(128, 1)
+    net = UNet(384, 1)
     net = nn.DataParallel(net, device_ids=[0])
     net = net.to(device)
 
@@ -72,7 +73,7 @@ if __name__ == '__main__':
                   dir_checkpoint = dir_checkpoint,
                   epochs=args.epochs,
                   batch_size=args.batchsize,
-                  lr=args.lr,
+                  lr= 1e-5, #args.lr,
                   device=device,
                   img_size=512#args.size#512 ## TODO !!! args.size
                   

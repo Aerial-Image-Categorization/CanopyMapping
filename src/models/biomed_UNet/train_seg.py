@@ -66,6 +66,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import wandb
 
+from ..utils.losses import PolygonCanopyLoss
+
 def get_logger(filename, verbosity=1, name=None):
     level_dict = {0: logging.DEBUG, 1: logging.INFO, 2: logging.WARNING}
     formatter = logging.Formatter(
@@ -202,6 +204,10 @@ def train_net_seg(
     best_dice = 0
     early_stopping = EarlyStopping(patience=10, min_delta=0.001, mode="max")
     
+    loss_function = PolygonCanopyLoss(
+        dice_weight=1.0
+    )
+    
     # 5. Begin training
     for epoch in range(epochs):
         model.train()
@@ -222,9 +228,10 @@ def train_net_seg(
                 with torch.autocast(device.type if device.type != 'mps' else 'cpu', enabled=amp):
                     masks_pred = model(images)
                     if model.n_classes == 1:
-                        loss = criterion(masks_pred.squeeze(1), true_masks.float())
+                        loss = 0.1*criterion(masks_pred.squeeze(1), true_masks.float())
                         #loss += dice_loss(F.sigmoid(masks_pred.squeeze(1)), true_masks.float(), multiclass=False)
-                        loss += dice_loss(torch.sigmoid(masks_pred.squeeze(1)), true_masks.float(), multiclass=False)
+                        #loss += dice_loss(torch.sigmoid(masks_pred.squeeze(1)), true_masks.float(), multiclass=False)
+                        loss += 0.9*loss_function(torch.sigmoid(masks_pred.squeeze(1)), true_masks.float())
                     else:
                         #loss = criterion(masks_pred, true_masks)
                         #loss += jaccard_loss(

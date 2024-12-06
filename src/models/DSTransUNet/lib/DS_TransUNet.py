@@ -11,8 +11,10 @@ from torch.autograd import Variable
 
 from ..utils.module import Attention, PreNorm, FeedForward, CrossAttention
 
-groups = 32
-
+#groups = 64
+#groups = 32
+#groups = 1 #16
+groups = 1
 class Mlp(nn.Module):
     """ Multilayer perceptron."""
 
@@ -937,8 +939,8 @@ class Cross_Att(nn.Module):
 class UNet(nn.Module):
     def __init__(self, dim, n_class, in_ch=3):
         super().__init__()
-        self.encoder = SwinTransformer(depths=[2, 2, 18, 2], num_heads=[ 4, 8, 16, 32 ], drop_path_rate=0.5, embed_dim=128)
-        self.encoder2 = SwinTransformer(depths=[2, 2, 6, 2], num_heads=[ 3, 6, 12, 24 ], drop_path_rate=0.2, patch_size=8, embed_dim=96)
+        self.encoder = SwinTransformer(depths=[2, 2, 18, 2], num_heads=[ 4, 8, 16, 32 ], drop_path_rate=0.0, patch_size=4, embed_dim=128) #0.5
+        self.encoder2 = SwinTransformer(depths=[2, 2, 6, 2], num_heads=[ 3, 6, 12, 24 ], drop_path_rate=0.0, patch_size=8, embed_dim=96) #0.2
         #self.encoder.init_weights('checkpoints/swin_base_patch4_window7_224_22k.pth')
         #self.encoder2.init_weights('checkpoints/swin_tiny_patch4_window7_224.pth')
         self.layer1 = Swin_Decoder(8*dim, 2, 8)

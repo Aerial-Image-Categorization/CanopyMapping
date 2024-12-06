@@ -78,12 +78,12 @@ class DecoderBlock(nn.Module):
         return x
 
 class model(nn.Module):
-    def __init__(self, n_channels, n_classes, dropout_prob=0.2):
+    def __init__(self, n_channels, n_classes, dropout_prob=0.2, bilinear = False):
         super(model, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
         self.dropout_prob = dropout_prob
-        self.bilinear = True  
+        self.bilinear = bilinear  
 
         # Encoder
         self.enc1 = EncoderBlock(n_channels, 32, dropout_prob)

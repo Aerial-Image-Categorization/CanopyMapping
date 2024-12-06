@@ -34,6 +34,22 @@ import matplotlib.pyplot as plt
 import wandb
 
 from ..utils.losses import TreeSpotLocalizationLoss
+from ..utils.scores import weighted_dice_opt, weighted_dice_loss
+
+class WarmupLR:
+    def __init__(self, optimizer, warmup_epochs, init_lr, target_lr):
+        self.optimizer = optimizer
+        self.warmup_epochs = warmup_epochs
+        self.init_lr = init_lr
+        self.target_lr = target_lr
+        self.current_epoch = 0
+
+    def step(self):
+        if self.current_epoch < self.warmup_epochs:
+            lr = self.init_lr + (self.target_lr-self.init_lr) * (self.current_epoch / self.warmup_epochs)
+            for param_group in self.optimizer.param_groups:
+                param_group['lr'] = lr
+        self.current_epoch += 1
 
 
 def conf_matrix(
@@ -104,7 +120,23 @@ def cal(loader):
         tot += imgs.shape[0]
     return tot
 
-def structure_loss_with_0(pred, mask):
+def structure_loss_with_p(pred, mask, epsilon=1e-6):
+    #wbce = F.binary_cross_entropy_with_logits(pred, mask, reduce='none')
+    #wbce = (weit*wbce).sum(dim=(2, 3)) / weit.sum(dim=(2, 3))
+
+    if mask.sum() == 0:
+        # If the mask is empty, use a different loss to encourage the model to predict empty masks
+        wiou = (pred ** 2).mean()  # Penalize the prediction if it's not close to zero
+    else:
+        weit = 1 + F.avg_pool2d(mask, kernel_size=13, stride=1, padding=6)
+        weit = torch.where(weit < 1.2, torch.tensor(1.0, dtype=weit.dtype, device=weit.device), weit/1.2)
+        pred = torch.sigmoid(pred)
+        inter = ((pred * mask) * weit).sum(dim=(2, 3))
+        union = ((pred + mask) * weit).sum(dim=(2, 3))
+        wiou = 1 - (inter + epsilon) / (union - inter + epsilon)
+    return wiou.mean()
+
+def structure_loss_with_0(pred, mask, epsilon=1e-6):
     #weit = 1 + 5*torch.abs(F.avg_pool2d(mask, kernel_size=31, stride=1, padding=15) - mask)
     
     #from border to center weights
@@ -112,14 +144,15 @@ def structure_loss_with_0(pred, mask):
     weit = torch.where(weit < 1.2, torch.tensor(1.0, dtype=weit.dtype, device=weit.device), weit/1.2)
     #
     
-    wbce = F.binary_cross_entropy_with_logits(pred, mask, reduce='none')
-    wbce = (weit*wbce).sum(dim=(2, 3)) / weit.sum(dim=(2, 3))
+    #wbce = F.binary_cross_entropy_with_logits(pred, mask, reduce='none')
+    #wbce = (weit*wbce).sum(dim=(2, 3)) / weit.sum(dim=(2, 3))
 
     pred = torch.sigmoid(pred)
     inter = ((pred * mask)*weit).sum(dim=(2, 3))
     union = ((pred + mask)*weit).sum(dim=(2, 3))
-    wiou = 1 - (inter + 1)/(union - inter+1)
-    return (wbce + wiou).mean()
+    wiou = 1 - (inter + epsilon)/(union - inter+epsilon)
+    return wiou.mean()
+    #return (wbce + wiou).mean()
 
 
 def structure_loss(pred, mask, epsilon=1e-6):
@@ -180,7 +213,7 @@ def train_net(net,
     #logger = get_logger(f'ds_transunet_base_1024.log')
 
     # (Initialize logging)
-    name=f'ds_transunet_base_{img_size}_u10'#opt_sch'
+    name=f'ds_transunet_base_{img_size}_u10_NEW'#opt_sch'
     if img_size>512:
         img_size = 512
     save_checkpoint=True
@@ -203,13 +236,14 @@ def train_net(net,
         Images size:  {img_size}
     ''')
 
-    optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=1e-4)
+    #optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=1e-4)
     #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, epochs//5, lr/10)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, epochs, lr/10, last_epoch=-1)
+    #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, epochs, lr/10, last_epoch=-1)
 
-    #optimizer = optim.RMSprop(net.parameters(),
-    #                          lr=lr, weight_decay=1e-4, momentum=0.9, foreach=True)
-    #scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=5)  # goal: maximize Dice score
+    optimizer = optim.RMSprop(net.parameters(),
+                              lr=lr, weight_decay=1e-4, momentum=0.9, foreach=True)
+    #optimizer = optim.Adam(net.parameters(), lr=lr, weight_decay=1e-4)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=5)  # goal: maximize Dice score
     if n_class > 1:
         criterion = nn.CrossEntropyLoss()
     else:
@@ -222,7 +256,23 @@ def train_net(net,
     global_step = 0
     
     early_stopping = EarlyStopping(patience=10, min_delta=0.001, mode="max")
-    #loss_function = TreeSpotLocalizationLoss(w_dice_weight=0.5, tversky_weight=0.5, soft_l2_weight=0, tversky_alpha=0.2)
+    loss_function = TreeSpotLocalizationLoss(
+        w_dice_weight=0.4,
+        tversky_weight=0,
+        soft_l2_weight=0,
+        focal_weight=0,
+        focal_tversky_weight=0.6,
+        focal_tversky_alpha=0.8,
+        focal_tversky_beta=0.2,
+        focal_tversky_gamma=4/3
+    )
+    warmup_epochs = 5
+    warmup_scheduler = WarmupLR(
+        optimizer,
+        warmup_epochs=warmup_epochs,
+        init_lr=1e-9,
+        target_lr=lr
+    )
 
     for epoch in range(epochs):
         net.train()
@@ -230,6 +280,10 @@ def train_net(net,
         epoch_loss = 0
         b_cp = False
         Batch = len(train_loader)
+        
+        #if epoch < warmup_epochs:
+        #    warmup_scheduler.step()
+        
         with tqdm(total=n_train*len(size_rates), desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:
             for batch in train_loader:
                 for rate in size_rates:
@@ -251,11 +305,16 @@ def train_net(net,
                     masks_pred, l2, l3 = net(imgs)
                     #masks_pred = (F.sigmoid(masks_pred) > 0.5).float()
                     ##masks_pred = masks_pred.squeeze(1)
-                    true_masks = true_masks.unsqueeze(0)
-                    loss1 = structure_loss_with_0(masks_pred, true_masks)
-                    loss2 = structure_loss_with_0(l2, true_masks)
-                    loss3 = structure_loss_with_0(l3, true_masks)
-                    loss = 0.6*loss1 + 0.2*loss2 + 0.2*loss3# + loss_function(torch.sigmoid(masks_pred.squeeze(0)), true_masks.float())
+                    true_masks = true_masks.unsqueeze(1)
+                    # DEBUG
+                    #print(masks_pred.size(), true_masks.size())
+                    w_loss = loss_function(torch.sigmoid(masks_pred), true_masks.float())#weighted_dice_loss(torch.sigmoid(masks_pred), true_masks.float())
+                    loss1 = w_loss #0.5 * criterion(masks_pred, true_masks.float()) + 0.5 * w_loss
+                    #loss1 = structure_loss_with_0(masks_pred, true_masks)
+                    loss2 = loss_function(torch.sigmoid(l2), true_masks.float())#structure_loss_with_p(l2, true_masks)
+                    loss3 = loss_function(torch.sigmoid(l3), true_masks.float())#structure_loss_with_p(l3, true_masks)
+                    loss = 0.2*criterion(torch.sigmoid(l3), true_masks.float()) + 0.7*loss1 + 0.5*loss2 + 0.1*loss3# + loss_function(torch.sigmoid(masks_pred.squeeze(0)), true_masks.float())
+                    #loss = 0.5*loss1 + 0.25*loss2 + 0.25*loss3# + 0.2*loss_function(torch.sigmoid(masks_pred.squeeze(0)), true_masks.float())
                     
                     #loss1 = 0.1 * criterion(masks_pred.squeeze(1), true_masks.float()) + 0.9 * loss_function(torch.sigmoid(masks_pred.squeeze(1)), true_masks.float())
                     #loss2 = 0.1 * criterion(masks_pred.squeeze(1), true_masks.float()) + 0.9 * loss_function(torch.sigmoid(l2.squeeze(1)), true_masks.float())
@@ -412,9 +471,9 @@ def train_net(net,
             torch.save(net.state_dict(),
                        dir_checkpoint + 'epoch:{}_dice:{:.3f}.pth'.format(epoch + 1, val_dice*100))
             logging.info(f'Checkpoint {epoch + 1} saved !')
-            if early_stopping.early_stop:
-                print("Early stopping triggered")
-                break
+           # if early_stopping.early_stop:
+           #     print("Early stopping triggered")
+           #     break
 
 
 
@@ -449,7 +508,7 @@ if __name__ == '__main__':
     train_mask_dir = f'../data/2024-10-30-loc-dataset-{args.size}/aug_train_u10/masks/'
     val_img_dir = f'../data/2024-10-30-loc-dataset-{args.size}/val/images/'
     val_mask_dir = f'../data/2024-10-30-loc-dataset-{args.size}/val/masks/'
-    dir_checkpoint = f'ds_transunet_checkpoints_{args.size}_u10_man/'
+    dir_checkpoint = f'ds_transunet_checkpoints_{args.size}_NEW/'
     
     
     

@@ -73,13 +73,13 @@ def process(src_image_folder, src_mask_folder, dest_image_folder, dest_mask_fold
         
         ### image man.
         #image = VARI(image)
-        #image = NDVI(image)
+        image = NDVI(image)
         #image = desaturation(image)
         #image = shadow_boosting(image)
         ###
         
         ### resize (interpolate)
-        image, mask = interpolate(image, mask, int_size)
+        #image, mask = interpolate(image, mask, int_size)
         ###
         
         cv2.imwrite(os.path.join(dest_image_folder, mask_filename.replace('_shp_','_tif_')), image)
@@ -95,7 +95,7 @@ if __name__ == '__main__':
         #('u_aug_train','u_aug_train_vari'),
         #('u_val','u_val_vari'),
         #('u_test','u_test_vari')
-        ('train','u_train')
+        #('train','u_train')
         #('aug_train','u_aug_train'),
         #('val','u_val'),
         #('test','u_test')
@@ -113,6 +113,14 @@ if __name__ == '__main__':
         #('u_aug_train_u10','sb_u_aug_train_u10'),
         #('u_val','sb_u_val'),
         #('u_test','sb_u_test')
+        #
+        #("u_aug_train_u10","clahe_u_aug_train_u10"),
+        #("u_val","clahe_u_val"),
+        #("u_test","clahe_u_test")
+        #
+        ('u_aug_train','u_aug_train_clahe'),
+        ('u_val','u_val_clahe'),
+        ('u_test','u_test_clahe')
     ]
 
     for subdir in tqdm(subdirs,desc='Processing folders'):

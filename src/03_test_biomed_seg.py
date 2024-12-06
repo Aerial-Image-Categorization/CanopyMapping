@@ -28,7 +28,7 @@ if __name__ == '__main__':
     logging.info(f'Using device {device}')
     
     
-    test_dir = f'../data/2024-11-12-seg-dataset-{args.size}/u_test_f50'
+    test_dir = f'../data/2024-11-13-seg-dataset-{args.size}/u_test'
     
     net = UNet.model(UNet.config(n_channels=3, n_classes=1, bilinear=False))
 
