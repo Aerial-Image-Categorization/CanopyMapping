@@ -380,9 +380,9 @@ def objectwise_classification_metrics(mask_pred, mask_true, threshold=0.5, weigh
         #'true_negative_count': total_true_negative_count, #empty image-mask pairs
         #'false_positive_count': total_false_positive_count,
         #'false_negative_count': total_false_negative_count,
-        #'tp_mask_batch': tp_mask_batch,
-        #'fp_mask_batch': fp_mask_batch,
-        #'fn_mask_batch': fn_mask_batch,
+        'tp_mask_batch': tp_mask_batch,
+        'fp_mask_batch': fp_mask_batch,
+        'fn_mask_batch': fn_mask_batch,
         'predictions': preds,
         'ground_truth': ground_truth
     }
