@@ -31,7 +31,7 @@ if __name__ == '__main__':
     amp = False
     bilinear = True
     
-    model = UNet.model(n_channels=3, n_classes=1)
+    model = UNet.model(n_channels=3, n_classes=1, bilinear=bilinear)
     dataset = None #UNet.ImageDataset(dataset_path)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
