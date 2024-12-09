@@ -254,20 +254,29 @@ def train_net_loc(
     ''')
 
     # 4. Set up the optimizer, the loss, the learning rate scheduler and the loss scaling for AMP
-    #optimizer = optim.RMSprop(model.parameters(),
-    #                          lr=learning_rate, weight_decay=weight_decay, momentum=momentum, foreach=True)
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-4)
+    optimizer = optim.RMSprop(model.parameters(),
+                             lr=learning_rate, weight_decay=weight_decay, momentum=momentum, foreach=True)
+    #optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=3)  # goal: maximize Dice score
     grad_scaler = torch.cuda.amp.GradScaler(enabled=amp)
     criterion = nn.CrossEntropyLoss() if model.n_classes > 1 else nn.BCEWithLogitsLoss()
     global_step = 0
     best_dice = 0
     early_stopping = EarlyStopping(patience=10, min_delta=0.001, mode="max")
-    loss_f = TreeSpotLocalizationLoss(
+    #loss_f = TreeSpotLocalizationLoss(
+    #    w_dice_weight=0.7,
+    #    tversky_weight=0.3,
+    #    soft_l2_weight=0,
+    #    focal_weight=0
+    #)
+    loss_function = TreeSpotLocalizationLoss(
         w_dice_weight=0.7,
-        tversky_weight=0.3,
+        tversky_weight=0,
         soft_l2_weight=0,
-        focal_weight=0
+        focal_weight=0,
+        focal_tversky_weight=0.3,
+        focal_tversky_alpha=0.6,
+        focal_tversky_gamma=4/3
     )
     
     # 5. Begin training
@@ -290,7 +299,7 @@ def train_net_loc(
                 with torch.autocast(device.type if device.type != 'mps' else 'cpu', enabled=amp):
                     masks_pred = model(images)
                     if model.n_classes == 1:
-                        w_loss = loss_f(torch.sigmoid(masks_pred.squeeze(1)), true_masks.float())#weighted_dice_loss(torch.sigmoid(masks_pred.squeeze(1)), true_masks.float())
+                        w_loss = loss_function(torch.sigmoid(masks_pred.squeeze(1)), true_masks.float())#weighted_dice_loss(torch.sigmoid(masks_pred.squeeze(1)), true_masks.float())
                         loss = w_loss #0.1 * criterion(masks_pred.squeeze(1), true_masks.float()) + 0.9 * w_loss#dice_loss(torch.sigmoid(masks_pred.squeeze(1)), true_masks.float(), multiclass=False)
                     else:
                         #loss = criterion(masks_pred, true_masks)

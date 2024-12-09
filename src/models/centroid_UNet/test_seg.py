@@ -31,7 +31,7 @@ def test_net(
     n_class=1,
     img_size=512):
 
-    wandb.init(project="CanopyMapping", resume='allow', anonymous='must',name=f'test_centroid_{img_size}', magic=True)
+    wandb.init(project="CanopyMapping", resume='allow', anonymous='must',name=f'test_centroid_seg_{img_size}', magic=True)
 
     #val_img_dir = f'../data/2024-10-30-loc-dataset-{img_size}/test/images/'#'data/Kvasir_SEG/val/images/'
     #val_mask_dir = f'../data/2024-10-30-loc-dataset-{img_size}/test/masks/'#'data/Kvasir_SEG/val/masks/'
