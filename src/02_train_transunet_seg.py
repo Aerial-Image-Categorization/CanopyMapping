@@ -42,10 +42,10 @@ if __name__ == '__main__':
     #train_mask_dir = f'../data/2024-10-30-loc-dataset-{args.size}/u_aug_train_u10/masks/'
     #val_img_dir = f'../data/2024-10-30-loc-dataset-{args.size}/u_val/images/'
     #val_mask_dir = f'../data/2024-10-30-loc-dataset-{args.size}/u_val/masks/'
-    train_img_dir = f'../data/2024-11-13-seg-dataset-{args.size}/u_train'
-    train_mask_dir = f'../data/2024-11-13-seg-dataset-{args.size}/u_aug_train/masks/'
-    val_img_dir = f'../data/2024-11-13-seg-dataset-{args.size}/u_val'
-    val_mask_dir = f'../data/2024-11-13-seg-dataset-{args.size}/u_val/masks/'
+    train_img_dir = f'../data/2024-12-08-seg2-dataset-{args.size}/u_train_filtered'
+    train_mask_dir = f'../data/2024-12-08-seg2-dataset-{args.size}/u_aug_train/masks/_filtered'
+    val_img_dir = f'../data/2024-12-08-seg2-dataset-{args.size}/u_val_filtered'
+    val_mask_dir = f'../data/2024-12-08-seg2-dataset-{args.size}/u_val/masks/_filtered'
     dir_checkpoint = f'ds_transunet_seg_checkpoints_{args.size}/'
     
     

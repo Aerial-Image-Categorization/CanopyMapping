@@ -73,8 +73,8 @@ def process(src_image_folder, src_mask_folder, dest_image_folder, dest_mask_fold
         
         ### image man.
         #image = VARI(image)
-        image = NDVI(image)
-        #image = desaturation(image)
+        #image = NDVI(image)
+        image = desaturation(image)
         #image = shadow_boosting(image)
         ###
         
@@ -89,16 +89,21 @@ def process(src_image_folder, src_mask_folder, dest_image_folder, dest_mask_fold
 if __name__ == '__main__':
     #dataset_path = '../data/2024-10-30-loc-dataset-1024'
     #dataset_path = '../data/2024-11-13-seg-dataset-1024'
-    dataset_path = '../data/2024-11-13-seg-dataset-2048'
+    #dataset_path = '../data/2024-11-13-seg-dataset-2048'
+    dataset_path = '../data/2024-12-08-seg2-dataset-1024'
+    #dataset_path = '../data/2024-12-08-seg2-dataset-2048'
     
     subdirs = [
         #('u_aug_train','u_aug_train_vari'),
         #('u_val','u_val_vari'),
         #('u_test','u_test_vari')
-        #('train','u_train')
+        #('train','u_train'),
         #('aug_train','u_aug_train'),
         #('val','u_val'),
         #('test','u_test')
+        ('u_aug_train_filtered','u_aug_train_f_des'),
+        ('u_val_filtered','u_val_f_des'),
+        ('u_test_filtered','u_test_f_des')
         #('aug_train','ndvi_aug_train'),
         #('val','ndvi_val'),
         #('test','ndvi_test')
@@ -118,9 +123,9 @@ if __name__ == '__main__':
         #("u_val","clahe_u_val"),
         #("u_test","clahe_u_test")
         #
-        ('u_aug_train','u_aug_train_clahe'),
-        ('u_val','u_val_clahe'),
-        ('u_test','u_test_clahe')
+        #('u_aug_train','u_aug_train_clahe'),
+        #('u_val','u_val_clahe'),
+        #('u_test','u_test_clahe')
     ]
 
     for subdir in tqdm(subdirs,desc='Processing folders'):

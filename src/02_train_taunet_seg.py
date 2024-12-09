@@ -20,8 +20,8 @@ def get_args():
 if __name__ == '__main__':
     args = get_args()
     img_size = args.size #512
-    train_set_path = f'../data/2024-11-13-seg-dataset-{img_size}/u_aug_train'
-    valid_set_path = f'../data/2024-11-13-seg-dataset-{img_size}/u_val'
+    train_set_path = f'../data/2024-12-08-seg2-dataset-{img_size}/u_aug_train_filtered'
+    valid_set_path = f'../data/2024-12-08-seg2-dataset-{img_size}/u_val_filtered'
     epochs = args.epochs #25
     batch_size = args.batchsize #6
     lr = 1e-6

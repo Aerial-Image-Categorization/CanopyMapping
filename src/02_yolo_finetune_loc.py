@@ -25,10 +25,10 @@ def create_yolo_yaml_file(base_dir, output_file, num_classes=1, class_names=None
 
 if __name__ == '__main__':
     yolo_model_name = 'yolo11n-seg.pt'
-    dataset_folder = '../../data/2024-10-30-loc-dataset-192_yolo2'
+    dataset_folder = '../../data/2024-10-30-loc-dataset-1024_yolo'
     num_classes = 1
-    epochs = 1
-    images_size = 192
+    epochs = 30
+    images_size = 512
     class_names = ['tree']
     
     wandb.login(key="eed270f2f8c27af665f378c7ae0e25af584aa5dd")
