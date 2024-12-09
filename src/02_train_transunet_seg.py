@@ -73,7 +73,7 @@ if __name__ == '__main__':
                   dir_checkpoint = dir_checkpoint,
                   epochs=args.epochs,
                   batch_size=args.batchsize,
-                  lr= 1e-5, #args.lr,
+                  lr= 1e-8, #args.lr,
                   device=device,
                   img_size=512#args.size#512 ## TODO !!! args.size
                   

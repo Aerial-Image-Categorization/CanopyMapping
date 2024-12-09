@@ -12,9 +12,9 @@ from torch.autograd import Variable
 from ..utils.module import Attention, PreNorm, FeedForward, CrossAttention
 
 #groups = 64
-#groups = 32
+groups = 32
 #groups = 1 #16
-groups = 1
+#groups = 1
 class Mlp(nn.Module):
     """ Multilayer perceptron."""
 
