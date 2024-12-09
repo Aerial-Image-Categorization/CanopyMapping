@@ -25,17 +25,17 @@ def create_yolo_yaml_file(base_dir, output_file, num_classes=1, class_names=None
 
 if __name__ == '__main__':
     yolo_model_name = 'yolo11n-seg.pt'
-    dataset_folder = '../../data/2024-10-30-loc-dataset-1024_yolo'
+    dataset_folder = '../../data/2024-12-08-seg2-dataset-2048_yolo'
     num_classes = 1
     epochs = 40
     images_size = 512
-    class_names = ['tree']
+    class_names = ['canopy']
     
     wandb.login(key="eed270f2f8c27af665f378c7ae0e25af584aa5dd")
 
     create_yolo_yaml_file(
         base_dir = dataset_folder,
-        output_file = 'yolo_dataset.yaml',
+        output_file = 'yolo_seg_dataset.yaml',
         num_classes = num_classes,
         class_names = class_names
     )
@@ -43,10 +43,10 @@ if __name__ == '__main__':
     model = YOLO(yolo_model_name)
 
     train_metrics = model.train(
-        data='yolo_loc_dataset.yaml',
+        data='yolo_seg_dataset.yaml',
         epochs = epochs,
         imgsz = images_size,
-        project="yolo11n_loc",
+        project="yolo11n_seg",
         name=f"yolo11n_{images_size}"
     )
     print(train_metrics)

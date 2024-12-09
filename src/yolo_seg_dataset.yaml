@@ -1,0 +1,7 @@
+names:
+- canopy
+nc: 1
+path: ../../../data/2024-12-08-seg2-dataset-2048_yolo
+test: images/test
+train: images/train
+val: images/val
