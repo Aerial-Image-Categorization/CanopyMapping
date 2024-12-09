@@ -186,9 +186,9 @@ def train_net(
     early_stopping = EarlyStopping(patience=15, min_delta=0.001, mode="max")
     
     loss_function = PolygonCanopyLoss(
-        dice_weight=0.3,
-        ssim_weight=0.2,
-        bce_weight=0.5,
+        dice_weight=1.0,
+        ssim_weight=0.0,
+        bce_weight=0.0,
         diversity_weight=0.0
     )
     

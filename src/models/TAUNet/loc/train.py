@@ -455,7 +455,6 @@ def train_net_loss(
         focal_weight=0,
         focal_tversky_weight=0.3,
         focal_tversky_alpha=0.6,
-        focal_tversky_beta=0.4,
         focal_tversky_gamma=4/3
     )
     # 5. Begin training
