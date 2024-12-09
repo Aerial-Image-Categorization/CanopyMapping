@@ -108,6 +108,43 @@ def split_shp(shp_path, tifs_folder, out_folder):
     elapsed_time = time.time() - start_time
     return count, elapsed_time
 
+def split_shp_seg(shp_path, tifs_folder, out_folder):
+    """
+    splitting .shp files
+    w/ geopandas, rasterio
+    pattern: out_folder/tile_shp_{i}_{j}.shp
+    return: count, elapsed_time
+    """
+    start_time = time.time()
+    
+    extension = '.tif'
+    files = os.listdir(tifs_folder)
+    total_files = len(files)
+    count= 0
+    with tqdm(total=total_files, desc='splitting shps') as pbar:
+        for file in files:
+            if file.endswith(extension):
+                tif_file_path = os.path.join(tifs_folder, file)
+                
+                with rasterio.open(tif_file_path) as src:
+                    bbox = box(*src.bounds)
+                tile_gdf = gpd.read_file(shp_path, mask=bbox)
+
+                splitted_name = os.path.basename(tif_file_path).split('_')
+                out_path = os.path.join(out_folder, f'tile_shp_{splitted_name[2]}_{os.path.splitext(splitted_name[3])[0]}.shp')
+                tile_gdf.to_file(out_path)
+
+                
+                count=count+1
+
+
+
+
+            pbar.update(1)
+
+        elapsed_time = time.time() - start_time
+        return count, elapsed_time
+
 def split(tif_path, shp_path, output_folder, tile_size=(250, 250)): 
     """
     splitting .shp & .tif files 
@@ -620,6 +657,40 @@ def split_SEG(tif_path, points_shp_path, poly_shp_path, output_folder, tile_size
 
     return out_dict
 
+#process_seg_tile_with_all_polygons(idx, None, point.geometry.x, point.geometry.y, tif_dataset, tif_transform, poly_shp_path, tifs_path_folder, shps_path_folder, tile_size, pixel_width, pixel_height)
+def split_SEG2(tif_path, shp_path, output_folder, tile_size=(250, 250)): 
+    """
+    splitting .shp & .tif files 
+    w/ split_tif() & split_shp() functions
+    pattern: out_folder/{tifs / shps}/tile_{ext.}_{i}_{j}.{ext.}
+    """
+
+    tifs_path_folder = os.path.join(output_folder, 'tifs')
+    shps_path_folder = os.path.join(output_folder, 'shps')
+    
+    if not os.path.exists(tifs_path_folder):
+        os.makedirs(tifs_path_folder)
+    if not os.path.exists(shps_path_folder):
+        os.makedirs(shps_path_folder)
+    
+    logging.info(f'⚙️ TIF splitage started:\n\t- splitted shp: {tif_path}\n\t- to: {tifs_path_folder}')
+    
+    num_cols, num_rows, elapsed_time = split_tif(tif_path,tifs_path_folder,tile_size)
+
+    hours, remainder = divmod(elapsed_time, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    logging.info(f'✅ TIF splitting ended in {int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}\n\t- split size: {num_rows}x{num_cols}\n\t- tile size: {tile_size}')
+
+    logging.info(f'⚙️ SHP splitage started:\n\t- splitted shp: {shp_path}\n\t- to: {shps_path_folder}')
+    
+    count, elapsed_time = split_shp_seg(shp_path, tifs_path_folder, shps_path_folder)
+    hours, remainder = divmod(elapsed_time, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    logging.info(f'✅ SHP splitting ended in {int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}\n\t- split size: {count}')
+    if num_rows*num_cols != count:
+        logging.warning(f'⚠️ TIFs - SHPs count mismatch: {num_rows*num_cols} - {count}')
+
+
 def process_seg_tile(idx, sub_idx, center_x, center_y, tif_dataset, tif_transform, poly_shp_path, tifs_path_folder, shps_path_folder, tile_size, pixel_width, pixel_height):
     """
     Helper function to process a single tile around a point, using only the closest polygon to the center.
@@ -841,7 +912,7 @@ def createPNG_Dataset_SEG(folder, out_folder, tile_size=(250,250),point_size=1,b
     try:
         with tqdm(total=total_count, desc='Processing shp files') as pbar:
             for file in files:
-                tif_path = os.path.join(tifs_folder, file.replace('.shp', '.tif'))
+                tif_path = os.path.join(tifs_folder, file.replace('shp', 'tif'))
                 out_path = os.path.join(out_shps_folder, os.path.splitext(file)[0] + '.png')
                 try:
                     convert_SHPtoPNG_SEG(tif_path, os.path.join(shps_folder, file), out_path, tile_size, bg_color, fg_color)
@@ -858,6 +929,9 @@ def createPNG_Dataset_SEG(folder, out_folder, tile_size=(250,250),point_size=1,b
         logging.info(f'✅ DATASET created in: {int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}')
         return elapsed_time
     return False
+
+
+
 
 from shapely.geometry import Polygon
 from skimage import measure
