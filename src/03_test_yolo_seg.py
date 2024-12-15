@@ -29,6 +29,7 @@ def create_yolo_yaml_file(base_dir, output_file, num_classes=1, class_names=None
 
 if __name__ == '__main__':
     yolo_model_name = './models/YOLOv11n-seg/yolo11n_seg/yolo11n_512/weights/best.pt'
+    yolo_model_name = './yolo11n_seg/yolo11n_512/weights/best.pt'
     dataset_folder = '../data/2024-12-08-seg2-dataset-2048'
     num_classes = 1
     images_size = 512
@@ -36,7 +37,7 @@ if __name__ == '__main__':
     
     # Login to Weights & Biases
     wandb.login(key="eed270f2f8c27af665f378c7ae0e25af584aa5dd")
-    wandb.init(project="CanopyMapping", resume='allow', anonymous='must',name=f'test_yolo_seg_{img_size}', magic=True)
+    wandb.init(project="CanopyMapping", resume='allow', anonymous='must',name=f'test_yolo_seg_{images_size}', magic=True)
     ## Create YOLO dataset YAML
     #create_yolo_yaml_file(
     #    base_dir=dataset_folder,
@@ -50,7 +51,7 @@ if __name__ == '__main__':
     print(f"Loaded model: {yolo_model_name}")
 
     # Create validation dataloader
-    test_set_path = os.path.join(dataset_folder, 'u_test')
+    test_set_path = os.path.join(dataset_folder, 'u_test_f_vari')
     test_set = SegImageDataset(test_set_path)
     
     loader_args = dict(batch_size=1, pin_memory=True)
@@ -60,11 +61,11 @@ if __name__ == '__main__':
     model.to(device)
 
     # Run evaluation using evaluate_seg
-    val_metrics = evaluate_seg_yolo(model, test_loader, device, epoch=0, amp=True)
+    results = evaluate_seg_yolo(model, test_loader, device, epoch=0, amp=True)
 
     # Print validation metrics
     print("Validation Metrics:")
-    print(val_metrics)
+    print(results)
     wandb.log({
         'Segmentation metrics': {
             'Dice': results['dice_score'],
