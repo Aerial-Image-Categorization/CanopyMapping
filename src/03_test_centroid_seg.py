@@ -30,7 +30,7 @@ if __name__ == '__main__':
     
     test_dir = f'../data/2024-11-13-seg-dataset-{args.size}/u_test'
     
-    net = UNet.model(n_channels=3, n_classes=1)
+    net = UNet.model(n_channels=3, n_classes=1, bilinear=True)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info(f'Loading model {args.load}')
