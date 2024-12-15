@@ -5,7 +5,7 @@ import argparse
 import torch
 import logging
 from models import biomed_UNet as UNet
-from models.biomed_UNet.test import test_net
+from models.biomed_UNet.test_loc import test_net
 
 
 def get_args():
