@@ -5,7 +5,7 @@ import argparse
 import torch
 import logging
 from models import centroid_UNet as UNet
-from models.biomed_UNet.test_seg import test_net
+from models.centroid_UNet.test_loc import test_net
 
 
 def get_args():
@@ -28,9 +28,9 @@ if __name__ == '__main__':
     logging.info(f'Using device {device}')
     
     
-    test_dir = f'../data/2024-11-13-seg-dataset-{args.size}/u_test'
+    test_dir = f'../data/2024-10-30-loc-dataset-{args.size}/u_test'
     
-    net = UNet.model(n_channels=3, n_classes=1)
+    net = UNet.model(n_channels=3, n_classes=1, bilinear=True)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info(f'Loading model {args.load}')
