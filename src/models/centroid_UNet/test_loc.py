@@ -18,6 +18,7 @@ pred_path = 'output/biomed_test/pred/'
 gt_path = 'output/biomed_test/gt/'
 
 from ..utils.evaluation_seg import evaluate_seg
+from ..utils import evaluate
 
 import wandb
 from ..biomed_UNet.datasets import ImageDataset

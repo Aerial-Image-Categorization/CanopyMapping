@@ -202,7 +202,7 @@ def train_net_seg(
     criterion = nn.CrossEntropyLoss() if model.n_classes > 1 else nn.BCEWithLogitsLoss()
     global_step = 0
     best_dice = 0
-    early_stopping = EarlyStopping(patience=10, min_delta=0.001, mode="max")
+    early_stopping = EarlyStopping(patience=40, min_delta=0.001, mode="max")
     
     loss_function = PolygonCanopyLoss(
         dice_weight=1.0
@@ -332,7 +332,7 @@ def train_net_seg(
         
         early_stopping(val_score["dice_score"])
         
-        if (save_checkpoint and b_cp) or early_stopping.early_stop:
+        if True or (save_checkpoint and b_cp) or early_stopping.early_stop:
             try:
                 os.mkdir(dir_checkpoint)
                 logging.info('Created checkpoint directory')
