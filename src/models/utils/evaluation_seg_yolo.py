@@ -32,16 +32,19 @@ def evaluate_seg_yolo(net, dataloader, device, epoch, amp):
 
             # Predict the mask using YOLO model
             results = net(image, save=True, imgsz=512, conf=0.2)  # YOLO outputs could include multiple elements; extract segmentation mask
-            for result in results:
-                masks = result.masks.data
-                boxes = result.boxes.data
-                clss = boxes[:, 5]
-                people_indices = torch.where(clss == 0)
-                people_masks = masks[people_indices]
-                mask_pred = torch.any(people_masks, dim=0).int()# * 255
-                cv2.imwrite('test_yolo_loc.jpg', (mask_pred * 255).cpu().numpy())
-            # Process predictions
-            mask_pred = (F.sigmoid(mask_pred) > 0.5).float()
+            try:
+                for result in results:
+                    masks = result.masks.data
+                    boxes = result.boxes.data
+                    clss = boxes[:, 5]
+                    people_indices = torch.where(clss == 0)
+                    people_masks = masks[people_indices]
+                    mask_pred = torch.any(people_masks, dim=0).int()# * 255
+                    cv2.imwrite('test_yolo_loc.jpg', (mask_pred * 255).cpu().numpy())
+                # Process predictions
+                mask_pred = (F.sigmoid(mask_pred) > 0.5).float()
+            except:
+                mask_pred = torch.zeros((512, 512), device=device)
             
             dice_score.append(dice(mask_pred.squeeze(), mask_true.squeeze(), reduce_batch_first=False))
             total_iou.append(iou(mask_pred.squeeze(), mask_true.squeeze(), reduce_batch_first=False))
