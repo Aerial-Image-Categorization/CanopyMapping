@@ -54,9 +54,15 @@ if __name__ == '__main__':
     logging.info(f'Using device {device}')
 
     net = UNet(384, 1)
+
     #net = UNet(64, 1)
     net = nn.DataParallel(net, device_ids=[0])
     net = net.to(device)
+    total_params = sum(p.numel() for p in net.parameters())
+    trainable_params = sum(p.numel() for p in net.parameters() if p.requires_grad)
+    
+    print(f"Total parameters: {total_params:,}")
+    print(f"Trainable parameters: {trainable_params:,}")
 
     if args.load:
         net.load_state_dict(

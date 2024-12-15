@@ -34,7 +34,11 @@ if __name__ == '__main__':
     loader_args = dict(batch_size=batch_size, num_workers=os.cpu_count(), pin_memory=True)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
-
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    
+    print(f"Total parameters: {total_params:,}")
+    print(f"Trainable parameters: {trainable_params:,}")
     train_set = ImageDataset(train_set_path)
     valid_set = ImageDataset(valid_set_path)
     
