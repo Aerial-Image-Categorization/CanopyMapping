@@ -549,6 +549,7 @@ def create_SHP(folder,out_folder, result_path):
                 out_points.append(point_geoms)
                 pbar.update(1)
     flattened_points = flatten_list(out_points)
+    print(len(flattened_points))
     gdf = gpd.GeoDataFrame(geometry=flattened_points, crs=23700)  # Adjust CRS as needed
     gdf.to_file(result_path)
     elapsed_time = time.time() - start_time
@@ -954,12 +955,12 @@ def create_SHP_SEG(folder, out_folder, result_path, target_crs=23700):
     filenames = os.listdir(out_folder)
     total_count = len(filenames)
     count = 0
-    
+    crs = target_crs
     polygons = [] 
     with tqdm(total=total_count, desc='Converting MASKs to SHP') as pbar:
         for filename in filenames:
             if not filename.startswith('.'):
-                tif_path = os.path.join(folder, filename.replace('.png', '.tif'))
+                tif_path = os.path.join(folder, filename.replace('.png', '.tif').replace('mask','tile_tif'))
                 png_path = os.path.join(out_folder, filename)
                 
                 mask_img = Image.open(png_path).convert("1")
