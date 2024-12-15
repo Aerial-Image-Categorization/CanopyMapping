@@ -454,7 +454,7 @@ def train_net_loss(
         soft_l2_weight=0,
         focal_weight=0,
         focal_tversky_weight=0.3,
-        focal_tversky_alpha=0.6,
+        focal_tversky_alpha=0.4,
         focal_tversky_gamma=4/3
     )
     # 5. Begin training
@@ -479,8 +479,8 @@ def train_net_loss(
                     if model.n_classes == 1:
                         #loss = criterion(masks_pred.squeeze(1), true_masks.float())
                         #loss += dice_loss(torch.sigmoid(masks_pred.squeeze(1)), true_masks.float(), multiclass=False)
-                        #loss += loss_function(torch.sigmoid(masks_pred.squeeze(1)), true_masks.float())
-                        loss = 0.1 * criterion(masks_pred.squeeze(1), true_masks.float()) + 0.9 * loss_function(torch.sigmoid(masks_pred.squeeze(1)), true_masks.float())
+                        loss = loss_function(torch.sigmoid(masks_pred.squeeze(1)), true_masks.float())
+                        #loss = 0.1 * criterion(masks_pred.squeeze(1), true_masks.float()) + 0.9 * loss_function(torch.sigmoid(masks_pred.squeeze(1)), true_masks.float())
                     else:
                         #loss = criterion(masks_pred, true_masks)
                         #loss += jaccard_loss(
