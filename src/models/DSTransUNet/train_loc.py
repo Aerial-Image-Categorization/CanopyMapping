@@ -263,7 +263,6 @@ def train_net(net,
         focal_weight=0,
         focal_tversky_weight=0.6,
         focal_tversky_alpha=0.8,
-        focal_tversky_beta=0.2,
         focal_tversky_gamma=4/3
     )
     warmup_epochs = 5
