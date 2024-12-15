@@ -10,10 +10,10 @@ from torch import optim
 import torch.nn.functional as F
 from tqdm import tqdm
 
-from lib.DS_TransUNet import UNet
+from .lib.DS_TransUNet import UNet
 
 from torch.utils.data import DataLoader, random_split
-from utils.dataloader import get_loader,test_dataset
+from .utils.dataloader import get_loader,test_dataset
 from PIL import Image
 
 pred_path = 'output/kvasir/pred/'
@@ -61,8 +61,8 @@ def test_net(net,
 
     wandb.init(project="TreeDetection", resume='allow', anonymous='must',name=f'test_transunet_{img_size}', magic=True)
 
-    val_img_dir = f'../data/2024-10-30-loc-dataset-{img_size}-dropna/test/images/'#'data/Kvasir_SEG/val/images/'
-    val_mask_dir = f'../data/2024-10-30-loc-dataset-{img_size}-dropna/test/masks/'#'data/Kvasir_SEG/val/masks/'
+    val_img_dir = f'../data/2024-10-30-loc-dataset-{img_size}/u_test/images/'#'data/Kvasir_SEG/val/images/'
+    val_mask_dir = f'../data/2024-10-30-loc-dataset-{img_size}/u_test/masks/'#'data/Kvasir_SEG/val/masks/'
 
     val_loader = get_loader(val_img_dir, val_mask_dir, batchsize=batch_size, trainsize=img_size, augmentation = False)
     net.eval()
