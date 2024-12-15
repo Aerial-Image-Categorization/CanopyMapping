@@ -23,18 +23,18 @@ if __name__ == '__main__':
     #train_set_path = f'../data/2024-10-30-loc-dataset-{img_size}/aug_train_u10'
     #valid_set_path = f'../data/2024-10-30-loc-dataset-{img_size}/val'
 
-    train_set_path = f'../data/2024-12-08-seg2-dataset-{img_size}/u_aug_train'
-    valid_set_path = f'../data/2024-12-08-seg2-dataset-{img_size}/u_val'
+    train_set_path = f'../data/2024-12-08-seg2-dataset-{img_size}/u_aug_train_filtered'
+    valid_set_path = f'../data/2024-12-08-seg2-dataset-{img_size}/u_val_filtered'
     
     
     epochs = args.epochs #25
     batch_size = args.batchsize #6
-    lr = 1e-6
+    lr = 1e-4
     scale = 1
     val = 0.1
     amp = False
     bilinear = True
-    
+                                      
     model = UNet.model(n_channels=3, n_classes=1, bilinear=bilinear)
     dataset = None #UNet.ImageDataset(dataset_path)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
